@@ -1,0 +1,184 @@
+{
+  "name": "MCO - FollowUp Queue Dispatcher",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "minutes", "minutesInterval": 15}]
+        }
+      },
+      "id": "dispatcher-trigger",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const SUPABASE_URL = 'https://hkqssbomrcbtfbdowtgj.supabase.co';\nconst SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI';\nconst FOLLOWUP_URL = 'https://nextus.app.n8n.cloud/webhook/mco-followup';\nreturn [{ json: { SUPABASE_URL, SUPABASE_KEY, FOLLOWUP_URL } }];"
+      },
+      "id": "dispatcher-config",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.SUPABASE_URL }}/rest/v1/follow_up_queue",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "apikey", "value": "={{ $json.SUPABASE_KEY }}"},
+            {"name": "Authorization", "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {"name": "status", "value": "eq.pending"},
+            {"name": "scheduled_for", "value": "lte.{{ new Date().toISOString() }}"},
+            {"name": "order", "value": "scheduled_for.asc"},
+            {"name": "limit", "value": "20"}
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {"neverError": true}
+          }
+        }
+      },
+      "id": "dispatcher-fetch-queue",
+      "name": "Fetch Pending Queue",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Config').first().json;\nconst rows = Array.isArray($input.first().json) ? $input.first().json : [];\n\nif (rows.length === 0) {\n  // Nothing to process — return empty to stop execution\n  return [];\n}\n\n// Also need to fetch the lead's Aimfox account/conversation data from conversations table\n// for LinkedIn follow-ups. We'll include what we have and let coordinator handle it.\nreturn rows.map(row => ({ json: {\n  SUPABASE_URL: cfg.SUPABASE_URL,\n  SUPABASE_KEY: cfg.SUPABASE_KEY,\n  FOLLOWUP_URL: cfg.FOLLOWUP_URL,\n  queue_id:         row.queue_id,\n  lead_email:       row.lead_email,\n  target_channel:   row.target_channel,\n  trigger_channel:  row.trigger_channel,\n  follow_up_context: row.follow_up_context || '',\n  trigger_event_id: row.trigger_event_id\n}}));"
+      },
+      "id": "dispatcher-split",
+      "name": "Split Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "li1",
+              "leftValue": "={{ $json.target_channel }}",
+              "rightValue": "linkedin",
+              "operator": {"type": "string", "operation": "equals"}
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dispatcher-is-linkedin",
+      "name": "LinkedIn?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1080, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.SUPABASE_URL }}/rest/v1/conversations",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "apikey", "value": "={{ $json.SUPABASE_KEY }}"},
+            {"name": "Authorization", "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"},
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {"name": "lead_email", "value": "={{ 'eq.' + $json.lead_email }}"},
+            {"name": "channel", "value": "eq.linkedin"},
+            {"name": "order", "value": "timestamp.desc"},
+            {"name": "limit", "value": "1"},
+            {"name": "select", "value": "metadata_json"}
+          ]
+        },
+        "options": {"response": {"response": {"neverError": true}}}
+      },
+      "id": "dispatcher-fetch-linkedin-meta",
+      "name": "Fetch LinkedIn Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1300, 260]
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $('Split Rows').item.json;\nconst metaRows = Array.isArray($input.first().json) ? $input.first().json : [];\nconst meta = metaRows.length > 0 ? (metaRows[0].metadata_json || {}) : {};\nreturn [{ json: {\n  ...row,\n  aimfox_account_id: meta.aimfox_account_id || null,\n  conversation_urn:  meta.aimfox_convo_id || meta.conversation_urn || null\n}}];"
+      },
+      "id": "dispatcher-merge-linkedin",
+      "name": "Merge LinkedIn Meta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1520, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.FOLLOWUP_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Content-Type", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  queue_id:          $json.queue_id,\n  lead_email:        $json.lead_email,\n  target_channel:    $json.target_channel,\n  trigger_channel:   $json.trigger_channel,\n  follow_up_context: $json.follow_up_context,\n  aimfox_account_id: $json.aimfox_account_id || null,\n  conversation_urn:  $json.conversation_urn  || null\n}) }}",
+        "options": {"response": {"response": {"neverError": true}}}
+      },
+      "id": "dispatcher-call-coordinator",
+      "name": "Call Coordinator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1740, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst status = resp.status || 'unknown';\nconst leadEmail = resp.lead_email || '';\nconst channel = resp.target_channel || '';\nconsole.log('Dispatcher result:', status, leadEmail, channel);\nreturn [{ json: { dispatched: true, status, lead_email: leadEmail, target_channel: channel } }];"
+      },
+      "id": "dispatcher-log",
+      "name": "Log Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1960, 400]
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {"main": [[{"node": "Config", "type": "main", "index": 0}]]},
+    "Config": {"main": [[{"node": "Fetch Pending Queue", "type": "main", "index": 0}]]},
+    "Fetch Pending Queue": {"main": [[{"node": "Split Rows", "type": "main", "index": 0}]]},
+    "Split Rows": {"main": [[{"node": "LinkedIn?", "type": "main", "index": 0}]]},
+    "LinkedIn?": {
+      "main": [
+        [{"node": "Fetch LinkedIn Meta", "type": "main", "index": 0}],
+        [{"node": "Call Coordinator", "type": "main", "index": 0}]
+      ]
+    },
+    "Fetch LinkedIn Meta": {"main": [[{"node": "Merge LinkedIn Meta", "type": "main", "index": 0}]]},
+    "Merge LinkedIn Meta": {"main": [[{"node": "Call Coordinator", "type": "main", "index": 0}]]},
+    "Call Coordinator": {"main": [[{"node": "Log Result", "type": "main", "index": 0}]]}
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null
+}

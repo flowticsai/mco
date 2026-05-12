@@ -1,0 +1,481 @@
+{
+  "name": "MCO - Aimfox Connection Accepted Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mco-aimfox-accepted",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "accepted-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        400
+      ],
+      "webhookId": "mco-aimfox-accepted"
+    },
+    {
+      "parameters": {
+        "jsCode": "const SUPABASE_URL = 'https://hkqssbomrcbtfbdowtgj.supabase.co';\nconst SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI';\nconst AIMFOX_TOKEN = 'Bearer 8e65df8c-3fe2-4ecf-bf05-8261ea85464b';\nconst FETCH_CONTEXT_URL = 'https://nextus.app.n8n.cloud/webhook/mco-fetch-context';\nconst WRITE_EVENT_URL = 'https://nextus.app.n8n.cloud/webhook/mco-write-event';\n\nconst body = $input.first().json.body || $input.first().json;\n\n// Aimfox accepted event payload\nconst account_id = body.account_id || body.accountId || null;\nconst lead = body.lead || {};\nconst lead_id = lead.id || body.lead_id || null;\nconst lead_urn = lead.urn || body.lead_urn || null;\nconst lead_name = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'there';\nconst linkedin_profile_url = lead.profile_url || lead.linkedin_url || null;\n\nif (!account_id) throw new Error('No account_id in Aimfox accepted payload');\nif (!lead_id && !lead_urn) throw new Error('No lead_id or lead_urn in payload');\n\nreturn [{ json: {\n  SUPABASE_URL, SUPABASE_KEY, AIMFOX_TOKEN,\n  FETCH_CONTEXT_URL, WRITE_EVENT_URL,\n  account_id: String(account_id),\n  lead_id: String(lead_id || ''),\n  lead_urn: lead_urn || '',\n  lead_name,\n  linkedin_profile_url\n}}];"
+      },
+      "id": "accepted-extract",
+      "name": "Extract Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://api.aimfox.com/api/v2/accounts/' + $json.account_id + '/leads/' + $json.lead_urn + '/custom-variables' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.AIMFOX_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "accepted-get-vars",
+      "name": "Get Lead Custom Variables",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const extracted = $('Extract Fields').first().json;\nconst varsResp = $input.first().json;\n\n// Custom variables may be nested differently depending on Aimfox response shape\nconst vars = varsResp.custom_variables || varsResp.variables || varsResp || {};\nconst lead_email = vars.LEAD_EMAIL || vars.lead_email || null;\n\nreturn [{ json: {\n  ...extracted,\n  lead_email,\n  has_email: !!lead_email\n}}];"
+      },
+      "id": "accepted-extract-email",
+      "name": "Extract LEAD_EMAIL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        860,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "e1",
+              "leftValue": "={{ $json.has_email }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "accepted-has-email",
+      "name": "Has Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\nconsole.log('Accepted event skipped \u2014 no LEAD_EMAIL in custom variables. lead_id:', d.lead_id);\nreturn [{ json: { skipped: true, reason: 'No LEAD_EMAIL in Aimfox custom variables', lead_id: d.lead_id } }];"
+      },
+      "id": "accepted-skip",
+      "name": "Skip \u2014 No Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1300,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\":\"ok\",\"skipped\":true}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "accepted-return-skip",
+      "name": "Return OK (Skipped)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.FETCH_CONTEXT_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_email: $json.lead_email, requesting_channel: 'linkedin', max_events: 20 }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "accepted-fetch-ctx",
+      "name": "Fetch Context",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const extracted = $('Extract LEAD_EMAIL').first().json;\nconst ctx = $input.first().json;\nconst lead = ctx.lead || {};\nreturn [{ json: {\n  ...extracted,\n  context_block: ctx.context_block || '(No prior conversation history.)',\n  overall_intent: ctx.overall_intent || 'unknown',\n  lead_name: lead.full_name || extracted.lead_name,\n  lead_company: lead.company || ''\n}}];"
+      },
+      "id": "accepted-merge-ctx",
+      "name": "Merge Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "model": "claude-sonnet-4-6",
+        "options": {
+          "systemPrompt": "You are a senior sales development representative for Nextus AI. A lead has just accepted your LinkedIn connection request. Write a warm, genuine first LinkedIn message to open the conversation.\n\nRules:\n- Maximum 80 words \u2014 LinkedIn messages must be brief\n- Reference the context of how you reached out (email, prior interaction) to show continuity\n- Be conversational, not salesy \u2014 this is the start of a dialogue\n- No greeting or sign-off \u2014 just the message body\n- No bullet points, no formatting, no emojis\n- Use the lead's real name, never placeholders\n- Output ONLY the message text"
+        }
+      },
+      "id": "accepted-ai-model",
+      "name": "LinkedIn: Claude Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        1740,
+        440
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "tFYLbQt9S6IzWYNd",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ 'Write a LinkedIn message to ' + $json.lead_name + ($json.lead_company ? ' at ' + $json.lead_company : '') + ' who just accepted our connection request.\\n\\nOverall intent: ' + $json.overall_intent + '\\n\\nContext (prior interactions across all channels):\\n' + $json.context_block }}",
+        "options": {}
+      },
+      "id": "accepted-generate",
+      "name": "Generate Message",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        1740,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $('Merge Context').first().json;\nconst aiOutput = $input.first().json;\nconst message = (aiOutput.text || aiOutput.output || '').trim();\nif (!message) throw new Error('AI returned empty message');\nreturn [{ json: { ...ctx, generated_message: message } }];"
+      },
+      "id": "accepted-extract-msg",
+      "name": "Extract Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1960,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://api.aimfox.com/api/v2/accounts/' + $json.account_id + '/conversations' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.AIMFOX_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: $json.generated_message, recipients: [$json.lead_id] }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "accepted-send",
+      "name": "Send via Start Conversation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2180,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.WRITE_EVENT_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  event_id: $('Extract Message').first().json.account_id + '-accepted-' + $('Extract Message').first().json.lead_id + '-' + Date.now(),\n  lead_email: $('Extract Message').first().json.lead_email,\n  timestamp: new Date().toISOString(),\n  channel: 'linkedin',\n  direction: 'outbound',\n  content: $('Extract Message').first().json.generated_message,\n  content_type: 'message',\n  sender_name: 'Anik Hanik',\n  intent: 'no_action',\n  metadata: {\n    platform_account_id: $('Extract Message').first().json.account_id,\n    platform_conversation_id: null,\n    triggered_by: 'connection_accepted'\n  },\n  workflow_execution_id: 'aimfox-accepted-handler'\n}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "accepted-log",
+      "name": "Log to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\"status\":\"ok\"}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "accepted-return-ok",
+      "name": "Return OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2620,
+        260
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Fields": {
+      "main": [
+        [
+          {
+            "node": "Get Lead Custom Variables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Lead Custom Variables": {
+      "main": [
+        [
+          {
+            "node": "Extract LEAD_EMAIL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract LEAD_EMAIL": {
+      "main": [
+        [
+          {
+            "node": "Has Email?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Email?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Context",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip \u2014 No Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip \u2014 No Email": {
+      "main": [
+        [
+          {
+            "node": "Return OK (Skipped)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Context": {
+      "main": [
+        [
+          {
+            "node": "Merge Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Context": {
+      "main": [
+        [
+          {
+            "node": "Generate Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LinkedIn: Claude Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Generate Message",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Message": {
+      "main": [
+        [
+          {
+            "node": "Extract Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Message": {
+      "main": [
+        [
+          {
+            "node": "Send via Start Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send via Start Conversation": {
+      "main": [
+        [
+          {
+            "node": "Log to Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Supabase": {
+      "main": [
+        [
+          {
+            "node": "Return OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null
+}

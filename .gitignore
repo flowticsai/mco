@@ -1,0 +1,19 @@
+# Credentials and secrets — NEVER commit these
+.env
+credentials.json
+token.json
+
+# Temporary scripts (contain hardcoded API keys)
+.tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/

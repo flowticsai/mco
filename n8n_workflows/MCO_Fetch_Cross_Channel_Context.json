@@ -1,0 +1,91 @@
+{
+  "name": "MCO - Fetch Cross-Channel Context",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mco-fetch-context",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "fetch-webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300],
+      "webhookId": "mco-fetch-context"
+    },
+    {
+      "parameters": {
+        "jsCode": "const SUPABASE_URL = 'https://hkqssbomrcbtfbdowtgj.supabase.co';\nconst SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI';\n\nconst body = $input.first().json.body || $input.first().json;\nif (!body.lead_email) throw new Error('Missing required field: lead_email');\n\nreturn [{ json: {\n  SUPABASE_URL,\n  SUPABASE_KEY,\n  lead_email: body.lead_email.toLowerCase().trim(),\n  requesting_channel: body.requesting_channel || null,\n  max_events: parseInt(body.max_events) || 20\n}}];"
+      },
+      "id": "fetch-setup",
+      "name": "Setup & Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.SUPABASE_URL }}/rest/v1/rpc/fetch_lead_context",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "apikey", "value": "={{ $json.SUPABASE_KEY }}"},
+            {"name": "Authorization", "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"},
+            {"name": "Content-Type", "value": "application/json"},
+            {"name": "Accept", "value": "application/json"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_lead_email: $json.lead_email, p_max_events: $json.max_events }) }}",
+        "options": {
+          "response": {
+            "response": {"neverError": true}
+          }
+        }
+      },
+      "id": "fetch-rpc",
+      "name": "Fetch Context RPC",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const setup = $('Setup & Validate').first().json;\nconst rpcResult = $input.first().json;\n\n// RPC always returns { lead: {...}|null, conversations: [...] } — never an empty array\nconst lead = rpcResult.lead || null;\nconst conversations = Array.isArray(rpcResult.conversations)\n  ? [...rpcResult.conversations].reverse()  // RPC returns DESC; reverse to chronological\n  : [];\n\nconst iconMap = { email: '[EMAIL]', linkedin: '[LINKEDIN]', voice: '[VOICE]', sms: '[SMS]' };\n\nif (!lead) {\n  return [{ json: {\n    context_block: '(No prior conversation history found for this lead.)',\n    lead: null, event_count: 0, overall_intent: 'unknown', lead_email: setup.lead_email\n  }}];\n}\n\nif (conversations.length === 0) {\n  const h = 'Lead: ' + (lead.full_name || lead.lead_email) + (lead.company ? ' (' + lead.company + ')' : '') + '\\nOverall Intent: ' + (lead.overall_intent || 'unknown');\n  return [{ json: {\n    context_block: '=== Cross-Channel Conversation History ===\\n' + h + '\\n\\n(No conversation history yet.)',\n    lead, event_count: 0, overall_intent: lead.overall_intent || 'unknown', lead_email: setup.lead_email\n  }}];\n}\n\nconst intentUpdated = lead.overall_intent_updated_at ? new Date(lead.overall_intent_updated_at).toISOString().slice(0,10) : 'unknown';\nconst lines = [\n  '=== Cross-Channel Conversation History ===',\n  'Lead: ' + (lead.full_name || lead.lead_email) + (lead.company ? ' (' + lead.company + ')' : ''),\n  'Overall Intent: ' + (lead.overall_intent || 'unknown') + ' (updated: ' + intentUpdated + ')',\n  ''\n];\n\nif (setup.requesting_channel) {\n  lines.unshift('You are replying on ' + setup.requesting_channel.toUpperCase() + '. Prior cross-channel context below.');\n  lines.unshift('');\n}\n\nfor (const conv of conversations) {\n  const icon = iconMap[conv.channel] || '[?]';\n  const dir = conv.direction === 'inbound' ? 'Inbound' : 'Outbound';\n  const ts = new Date(conv.timestamp).toISOString().replace('T',' ').slice(0,16) + ' UTC';\n  const content = (conv.content || '').length > 300 ? conv.content.slice(0,297) + '...' : (conv.content || '');\n  const sender = conv.sender_name ? ' - ' + conv.sender_name : '';\n  lines.push('[' + ts + '] ' + icon + ' ' + conv.channel.toUpperCase() + ' - ' + dir + sender);\n  lines.push(content);\n  if (conv.intent && conv.intent !== 'unknown') lines.push('Intent: ' + conv.intent);\n  lines.push('');\n}\n\nreturn [{ json: {\n  context_block: lines.join('\\n'),\n  lead, event_count: conversations.length,\n  overall_intent: lead.overall_intent || 'unknown',\n  lead_email: setup.lead_email\n}}];"
+      },
+      "id": "fetch-format",
+      "name": "Format Context Block",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {"responseCode": 200}
+      },
+      "id": "fetch-return",
+      "name": "Return Context",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1080, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": {"main": [[{"node": "Setup & Validate", "type": "main", "index": 0}]]},
+    "Setup & Validate": {"main": [[{"node": "Fetch Context RPC", "type": "main", "index": 0}]]},
+    "Fetch Context RPC": {"main": [[{"node": "Format Context Block", "type": "main", "index": 0}]]},
+    "Format Context Block": {"main": [[{"node": "Return Context", "type": "main", "index": 0}]]}
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null
+}
