@@ -1,0 +1,727 @@
+{
+  "updatedAt": "2026-05-11T20:40:35.399Z",
+  "createdAt": "2026-05-11T20:18:52.111Z",
+  "id": "7pTHnRue85rqTvXk",
+  "name": "MCO - Gmail Reply Agent",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "id": "n-gmail-trigger",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [
+        208,
+        400
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "hlddPOHSrkIvQo5A",
+          "name": "MCO Email"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst email = $input.first().json;\n\n// Parse from address - handle multiple Gmail trigger output shapes\nlet leadEmail = '', leadName = '';\nif (email.from) {\n  if (Array.isArray(email.from?.value)) {\n    leadEmail = (email.from.value[0]?.address || '').toLowerCase().trim();\n    leadName  = email.from.value[0]?.name || '';\n  } else if (typeof email.from === 'string') {\n    const m = email.from.match(/<(.+?)>/);\n    leadEmail = (m ? m[1] : email.from).toLowerCase().trim();\n    leadName  = email.from.split('<')[0].trim();\n  } else if (email.from?.address) {\n    leadEmail = email.from.address.toLowerCase().trim();\n    leadName  = email.from.name || '';\n  }\n}\nif (!leadName) leadName = leadEmail.split('@')[0];\n\nconst subject   = email.subject || '';\nconst body      = (email.text || email.snippet || '').trim();\nconst messageId = email.id || email.messageId || '';\nconst threadId  = email.threadId || '';\n\n// Skip: no email, noreply senders, not a reply, empty body\nif (!leadEmail || leadEmail.includes('noreply') || leadEmail.includes('no-reply')) return [];\nconst isReply = subject.toLowerCase().startsWith('re:') || !!email.inReplyTo || !!email['in-reply-to'];\nif (!isReply) return [];\nif (!body) return [];\n\nreturn [{ json: {\n  lead_email:   leadEmail,\n  lead_name:    leadName,\n  subject:      subject.replace(/^Re:\\s*/i, ''),\n  full_subject: subject,\n  body:         body.slice(0, 3000),\n  message_id:   messageId,\n  thread_id:    threadId\n}}];\n"
+      },
+      "id": "n-extract",
+      "name": "Extract & Filter",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://nextus.app.n8n.cloud/webhook/mco-fetch-context",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ lead_email: $json.lead_email, requesting_channel: \"email\", max_events: 20 }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "n-fetch-ctx",
+      "name": "MCO: Fetch Context",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1328,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst extracted = $('Extract & Filter').first().json;\nconst ctx = $input.first().json;\nreturn [{ json: {\n  ...extracted,\n  context_block:  ctx.context_block  || '(No prior conversation history.)',\n  overall_intent: ctx.overall_intent || 'unknown',\n  lead_name: (ctx.lead && ctx.lead.full_name) || extracted.lead_name\n}}];\n"
+      },
+      "id": "n-merge",
+      "name": "Merge Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://nextus.app.n8n.cloud/webhook/mco-write-event",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  event_id:      $json.message_id,\n  lead_email:    $json.lead_email,\n  timestamp:     new Date().toISOString(),\n  channel:       'email',\n  direction:     'inbound',\n  content:       $json.body,\n  content_type:  'message',\n  sender_name:   $json.lead_name,\n  full_name:     $json.lead_name,\n  intent:        'unknown'\n}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "n-write-inbound",
+      "name": "MCO: Write Inbound",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1888,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "inputText": "={{ $('Merge Context').first().json.body }}",
+        "categories": {
+          "categories": [
+            {
+              "category": "Interested",
+              "description": "Classify as Interested if the lead: engages meaningfully, asks questions, requests more info, is open to a meeting, shows curiosity, or replies with any intent to continue the conversation."
+            },
+            {
+              "category": "Not Interested",
+              "description": "Classify as Not Interested if the lead: asks to unsubscribe or stop contact, is clearly dismissive or rejecting, sends an automated out-of-office with no human intent, or explicitly says they are not interested."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n-classifier",
+      "name": "Text Classifier",
+      "type": "@n8n/n8n-nodes-langchain.textClassifier",
+      "typeVersion": 1.1,
+      "position": [
+        2080,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "chatgpt-4o-latest",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "n-openai-classifier",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        2160,
+        624
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "T1h71eOjG2RI1HDX",
+          "name": "OpenAi account 3"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "n-noop",
+      "name": "No Operation, do nothing",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2448,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ 'Reply to this email from ' + $('Merge Context').first().json.lead_name + ':\\n\\n' + 'Subject: ' + $('Merge Context').first().json.full_subject + '\\n\\n' + 'Email Body:\\n' + $('Merge Context').first().json.body + '\\n\\n' + 'Full Cross-Channel Conversation History (LinkedIn + Email):\\n' + $('Merge Context').first().json.context_block }}",
+        "options": {
+          "systemMessage": "## ROLE\nYou are an AI sales representative for Nextus AI. A lead has replied to our follow-up email. This lead originally engaged through LinkedIn outreach. You have their full cross-channel conversation history (LinkedIn + email) provided in the prompt.\n\n## RULES\n- Output ONLY the reply body text. No subject line. No greeting. No sign-off.\n- Maximum 120 words\n- No bullet points, no asterisks, no formatting\n- Write like a real human: warm, confident, not salesy\n- Do not use our company name. Use: we, us, our team\n- Use the lead's real name naturally in the message\n- No double dashes (—). Use single hyphens if needed\n- Reference the cross-channel history naturally if relevant\n\n## MEETING\nOnly include a meeting link if they show genuine interest:\n\"If you'd like to connect, feel free to grab a time: [your calendar link]\"\n\n## OUTPUT\nReturn ONLY the email body text. Nothing else."
+        }
+      },
+      "id": "n-reply-agent",
+      "name": "Reply Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        2448,
+        208
+      ],
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-sonnet-4-20250514",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "n-anthropic-reply",
+      "name": "Anthropic Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        2448,
+        400
+      ],
+      "credentials": {
+        "anthropicApi": {
+          "id": "tFYLbQt9S6IzWYNd",
+          "name": "Anthropic account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "description": "Call this to answer product/service questions or get knowledge base info.",
+        "workflowId": {
+          "__rl": true,
+          "value": "MbYIL7DHXiK64wOL",
+          "mode": "list",
+          "cachedResultName": "Bison Knowledge Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "id": "n-kb-reply",
+      "name": "Knowledgebase Agent",
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        2640,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ef-lc",
+              "name": "last copy",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n-edit-fields",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2720,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "operation": "sendAndWait",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C09BHUS1L2K",
+          "mode": "list",
+          "cachedResultName": "cold-email-reply-approval"
+        },
+        "message": "=📧 MCO Gmail Reply\n\n👤 Lead: {{ $('Merge Context').first().json.lead_name }}\n✉️ Email: {{ $('Merge Context').first().json.lead_email }}\n📝 Subject: {{ $('Merge Context').first().json.full_subject }}\n\n➡️➡️➡️ Lead's Email:\n{{ $('Merge Context').first().json.body.slice(0, 1200) }}\n\n--- Suggested Reply:\n{{ $('Edit Fields').item.json['last copy'] }}",
+        "responseType": "customForm",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Feedback",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Approve"
+                  },
+                  {
+                    "option": "Disapprove"
+                  }
+                ]
+              },
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Query",
+              "placeholder": "What changes do you want?"
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "n-slack",
+      "name": "Send a message",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.3,
+      "position": [
+        3008,
+        208
+      ],
+      "webhookId": "c2d8e4f6-a8b0-4c2e-9f1a-3d5b7e9c1a3f",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "eidB94iWe08RnImU",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "sw-app",
+                    "leftValue": "={{ $json.data.Feedback }}",
+                    "rightValue": "Approve",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "sw-dis",
+                    "leftValue": "={{ $json.data.Feedback }}",
+                    "rightValue": "Disapprove",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "n-switch-approval",
+      "name": "Switch",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3280,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Merge Context').first().json.lead_email }}",
+        "subject": "={{ 'Re: ' + $('Merge Context').first().json.subject }}",
+        "emailType": "text",
+        "message": "={{ $('Edit Fields').first().json['last copy'] }}",
+        "options": {
+          "senderName": "Anik Hanik",
+          "replyTo": "anik@nextus.ai"
+        }
+      },
+      "id": "n-send-gmail",
+      "name": "Send Gmail Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3568,
+        80
+      ],
+      "webhookId": "90bbf0b5-d673-499e-b116-b579f8a9f006",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "hlddPOHSrkIvQo5A",
+          "name": "MCO Email"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://nextus.app.n8n.cloud/webhook/mco-write-event",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  event_id:     'email_out_' + $('Merge Context').first().json.message_id,\n  lead_email:   $('Merge Context').first().json.lead_email,\n  timestamp:    new Date().toISOString(),\n  channel:      'email',\n  direction:    'outbound',\n  content:      $('Edit Fields').first().json['last copy'],\n  content_type: 'message',\n  sender_name:  'Anik Hanik',\n  intent:       'no_action'\n}) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "n-write-outbound",
+      "name": "MCO: Write Outbound",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3840,
+        80
+      ]
+    },
+    {
+      "id": "n-supabase-check",
+      "name": "Supabase: Check Outbound",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        760,
+        400
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://hkqssbomrcbtfbdowtgj.supabase.co/rest/v1/conversations?lead_email=eq.' + encodeURIComponent($json.lead_email) + '&channel=eq.email&direction=eq.outbound&select=event_id&limit=1' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "n-filter-thread",
+      "name": "Filter: Our Thread Only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        400
+      ],
+      "parameters": {
+        "jsCode": "\n// Supabase REST returns a JSON array: [] or [{event_id: \"...\"}]\nconst rows = $input.first().json;\nconst arr  = Array.isArray(rows) ? rows : [];\n\nif (arr.length === 0) {\n  // No outbound email to this lead in Supabase — not our follow-up thread\n  return [];\n}\n\n// Our thread confirmed — pass the extracted email data downstream\nreturn [{ json: $('Extract & Filter').first().json }];\n"
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Extract & Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Filter": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Check Outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MCO: Fetch Context": {
+      "main": [
+        [
+          {
+            "node": "Merge Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Context": {
+      "main": [
+        [
+          {
+            "node": "MCO: Write Inbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MCO: Write Inbound": {
+      "main": [
+        [
+          {
+            "node": "Text Classifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Text Classifier",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Text Classifier": {
+      "main": [
+        [
+          {
+            "node": "Reply Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Operation, do nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Reply Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Knowledgebase Agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Reply Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply Agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Send Gmail Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Send Gmail Reply": {
+      "main": [
+        [
+          {
+            "node": "MCO: Write Outbound",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Check Outbound": {
+      "main": [
+        [
+          {
+            "node": "Filter: Our Thread Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: Our Thread Only": {
+      "main": [
+        [
+          {
+            "node": "MCO: Fetch Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "nEiTKgedsmFUoDOL",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "f4f36d44-3402-44d1-975a-91e105701b40",
+  "activeVersionId": null,
+  "versionCounter": 4,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-05-11T20:18:52.113Z",
+      "createdAt": "2026-05-11T20:18:52.113Z",
+      "role": "workflow:owner",
+      "workflowId": "7pTHnRue85rqTvXk",
+      "projectId": "h75IwkxkzFQqllYm",
+      "project": {
+        "updatedAt": "2025-06-30T19:40:11.857Z",
+        "createdAt": "2025-06-30T17:50:07.677Z",
+        "id": "h75IwkxkzFQqllYm",
+        "name": "Mohammad Imran Hossain Anik <anik@nextus.ai>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "be90841b-174c-4ea0-b7b4-0aa745ad513b"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
+}
