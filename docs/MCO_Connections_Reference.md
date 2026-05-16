@@ -7,13 +7,21 @@
 
 These are the URLs other systems call to talk to MCO.
 
-| Workflow | URL | Method |
-|---|---|---|
-| Write Conversation Event | `https://nextus.app.n8n.cloud/webhook/mco-write-event` | POST |
-| Fetch Cross-Channel Context | `https://nextus.app.n8n.cloud/webhook/mco-fetch-context` | POST |
-| Centralized Follow-Up Coordinator | `https://nextus.app.n8n.cloud/webhook/mco-followup` | POST |
-| Aimfox Connection Accepted Handler | `https://nextus.app.n8n.cloud/webhook/mco-aimfox-accepted` | POST |
-| FollowUp Queue Dispatcher | *(no webhook — triggered by schedule every 15 min)* | — |
+**n8n instance:** `https://n8n-1404.n8n.whiteserverdns.com`
+
+| Workflow | n8n ID | URL | Method |
+|---|---|---|---|
+| Write Conversation Event | `5qOo5YzrPnW8Uj9g` | `https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-write-event` | POST |
+| Fetch Cross-Channel Context | `UJoDCfkmD3NJHktk` | `https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-fetch-context` | POST |
+| Centralized Follow-Up Coordinator | `KXKcCYRnK4V8v9k7` | `https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-followup` | POST |
+| Aimfox Connection Accepted Handler | `WTbIAJCZGtppAT91` | `https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-aimfox-accepted` | POST |
+| FollowUp Queue Dispatcher | `3ju6z4oJcWJqskBN` | *(no webhook — triggered by schedule every 15 min)* | — |
+| Aimfox Nextus AI Reply Agent — MCO | `SPN1NLyHH1LcfViD` | Aimfox webhook (new reply received) | — |
+| MCO - Gmail Reply Agent | `mFBOGdMAsXRKD1Pv` | Gmail trigger (new email received) | — |
+| Aimfox Data Fetching MCO | `o9l5PClHznNgZIK8` | `https://n8n-1404.n8n.whiteserverdns.com/webhook/3e030494-4719-491d-8291-2c9523e71c3d` | POST |
+| Post Call Analysis — MCO | `r8XKHCnL4vju2E4j` | `https://n8n-1404.n8n.whiteserverdns.com/webhook/9cdd28e8-7cfd-4765-a623-cda2d1b9f7a7` | POST |
+| Flowtics AI Call Agent — MCO | `xE8mFF8HxPaSXNmi` | `https://n8n-1404.n8n.whiteserverdns.com/webhook/3adf4681-721b-452e-94b3-5618887a15c4` + schedule | — |
+| MCO - Aimfox Responded | `Zw7iTErdMMJjiM7g` | `https://n8n-1404.n8n.whiteserverdns.com/webhook/629054f9-748e-4411-8bc2-5931ac2436cf` | POST |
 
 ---
 
@@ -210,10 +218,10 @@ These are called directly by MCO workflows — not raw SQL.
 
 **Calls:**
 - `GET https://api.aimfox.com/api/v2/accounts/:account_id/leads/:lead_urn/custom-variables`
-- `POST https://nextus.app.n8n.cloud/webhook/mco-fetch-context`
-- Anthropic Claude API (credential: `tFYLbQt9S6IzWYNd`)
+- `POST https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-fetch-context`
+- Anthropic Claude API (n8n credential: `Anthropic account 2`, ID `WEpOCYlwQtWIw3jK`)
 - `POST https://api.aimfox.com/api/v2/accounts/:account_id/conversations`
-- `POST https://nextus.app.n8n.cloud/webhook/mco-write-event`
+- `POST https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-write-event`
 
 ---
 
@@ -226,9 +234,11 @@ These are called directly by MCO workflows — not raw SQL.
 **What MCO does:** Creates items for new leads, posts conversation updates, updates intent + channel columns
 
 ### Gmail
-**Account:** `anik@nextus.ai`  
-**Used by:** Centralized Follow-Up Coordinator (email branch)  
-**Status:** Credential not yet linked in n8n — must be done manually
+**Account:** `team@flowticsai.com` (Flowtics AI)  
+**n8n credential:** `Gmail account` (ID `IC6TPjXMVxTyn2R9`)  
+**Used by:** Centralized Follow-Up Coordinator (email branch), Gmail Reply Agent  
+**Sender name:** `Flowtics AI` | **Reply-to:** `team@flowticsai.com`  
+**Status:** Linked and active in both workflows
 
 ### Aimfox
 **API Base:** `https://api.aimfox.com/api/v2`  
@@ -244,9 +254,9 @@ Aimfox endpoints MCO calls:
 | `POST /accounts/:id/campaigns/:campaign_id/audience/multiple` | Coordinator + Interested workflow | Add email lead to LinkedIn campaign with LEAD_EMAIL custom variable |
 
 ### Anthropic (Claude)
-**Credential ID in n8n:** `tFYLbQt9S6IzWYNd`  
+**n8n credential:** `Anthropic account 2` (ID `WEpOCYlwQtWIw3jK`)  
 **Model:** `claude-sonnet-4-6`  
-**Used by:** Connection Accepted Handler, Centralized Follow-Up Coordinator  
+**Used by:** Connection Accepted Handler, Centralized Follow-Up Coordinator, Gmail Reply Agent  
 
 ---
 
@@ -287,23 +297,25 @@ Schedule (every 15 min)
 
 ## Credentials Reference
 
-| Service | Value / Location | Used in |
-|---|---|---|
-| Supabase service key | Inside every MCO workflow's Setup/Config node | All 5 MCO workflows |
-| Monday.com token | Inside Write Event's Setup node | Write Event |
-| Anthropic (Claude) | n8n credential ID: `tFYLbQt9S6IzWYNd` | Connection Accepted Handler, Coordinator |
-| Aimfox API token | `Bearer 8e65df8c-3fe2-4ecf-bf05-8261ea85464b` — hardcoded in nodes | Connection Accepted Handler, Coordinator |
-| Gmail OAuth2 | To be linked in n8n on Send Email node | Coordinator |
+| Service | n8n Credential Name | n8n Credential ID | Used in |
+|---|---|---|---|
+| Supabase service key | Inside each workflow's Setup/Config node | — | All MCO workflows |
+| Monday.com token | Inside Write Event's Setup node | — | Write Event |
+| Anthropic (Claude) | `Anthropic account 2` | `WEpOCYlwQtWIw3jK` | Connection Accepted Handler, Coordinator, Gmail Reply Agent |
+| Aimfox API token | Hardcoded in nodes | — | Connection Accepted Handler, Coordinator |
+| Gmail OAuth2 | `Gmail account` | `IC6TPjXMVxTyn2R9` | Coordinator, Gmail Reply Agent |
+| Google Sheets | `Google Sheets account 2` | — | Aimfox Data Fetching MCO |
+| Slack | `Slack account 3` | `EczWlUTWwagmArbp` | Gmail Reply Agent |
 
 ---
 
-## Pending Connections (Not Yet Wired)
+## Pending / Known Gaps
 
-| What | Where | Who does it |
-|---|---|---|
-| Create Aimfox "MCO LinkedIn Follow-Up" campaign | Aimfox dashboard | You |
-| Replace `AIMFOX_FOLLOWUP_CAMPAIGN_ID` in Coordinator Setup node | n8n workflow `R9bkR97Xt5fHSN4K` | Me (once you share the campaign ID) |
-| Link Gmail credential on Send Email node | n8n workflow `R9bkR97Xt5fHSN4K` | You |
+| What | Status |
+|---|---|
+| Aimfox "MCO LinkedIn Follow-Up" campaign ID in Coordinator Setup node | Check if `AIMFOX_FOLLOWUP_CAMPAIGN_ID` placeholder has been replaced |
+| Retell webhook handler | Not built — waiting for Retell workflow JSON files |
+| Retool dashboard | Not built |
 | Link Anthropic credential on both Claude Model nodes in Coordinator | n8n workflow `R9bkR97Xt5fHSN4K` | You |
 | Activate Queue Dispatcher | n8n workflow `BQJkE0sa0yRKWDjM` | You |
 | Add 2 Write Event calls to Outcraft Reply Agent | Your existing workflow | You (instructions in integration guide) |

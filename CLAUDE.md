@@ -69,31 +69,35 @@ Postgres RPCs called by MCO workflows (not raw SQL):
 - `fetch_lead_context()` — returns lead record + last N conversations ordered by timestamp desc
 
 ### n8n
-**Instance:** `nextus.app.n8n.cloud`
+**Instance:** `https://n8n-1404.n8n.whiteserverdns.com`
 
 | Workflow | n8n ID | Status | Entry |
 |---|---|---|---|
-| Write Conversation Event | `GUUEUvfjFwLojoA0` | Active | `POST /mco-write-event` |
-| Fetch Cross-Channel Context | `JXpvRl8WTAqigVfi` | Active | `POST /mco-fetch-context` |
-| FollowUp Queue Dispatcher | `BQJkE0sa0yRKWDjM` | Active | Schedule (every 15 min) |
-| Centralized Follow-Up Coordinator | `R9bkR97Xt5fHSN4K` | Active | `POST /mco-followup` |
-| Aimfox Connection Accepted Handler | `8MxgrCTDN6IZ98iF` | Active | Aimfox webhook (`accepted` event) |
-| Aimfox Nextus AI Reply Agent — MCO | `mAGUFlmJZ0gwge3s` | Active | Aimfox webhook (new reply) |
-| Gmail Reply Agent | `7pTHnRue85rqTvXk` | **INACTIVE** | Gmail trigger |
+| Write Conversation Event | `5qOo5YzrPnW8Uj9g` | Active | `POST /webhook/mco-write-event` |
+| Fetch Cross-Channel Context | `UJoDCfkmD3NJHktk` | Active | `POST /webhook/mco-fetch-context` |
+| FollowUp Queue Dispatcher | `3ju6z4oJcWJqskBN` | Active | Schedule (every 15 min) |
+| Centralized Follow-Up Coordinator | `KXKcCYRnK4V8v9k7` | Active | `POST /webhook/mco-followup` |
+| Aimfox Connection Accepted Handler | `WTbIAJCZGtppAT91` | Active | Aimfox webhook (`accepted` event) |
+| Aimfox Nextus AI Reply Agent — MCO | `SPN1NLyHH1LcfViD` | Active | Aimfox webhook (new reply) |
+| MCO - Gmail Reply Agent | `mFBOGdMAsXRKD1Pv` | Active | Gmail trigger (team@flowticsai.com) |
+| Aimfox Data Fetching MCO | `o9l5PClHznNgZIK8` | Active | Webhook → writes to Google Sheets |
+| Post Call Analysis — MCO | `r8XKHCnL4vju2E4j` | Active | Webhook (post-call) |
+| Flowtics AI Call Agent — MCO | `xE8mFF8HxPaSXNmi` | Active | Webhook + Schedule |
+| MCO - Aimfox Responded | `Zw7iTErdMMJjiM7g` | Active | Aimfox responded webhook |
 
 ### Webhook URLs
 ```
-Write Event:   https://nextus.app.n8n.cloud/webhook/mco-write-event
-Fetch Context: https://nextus.app.n8n.cloud/webhook/mco-fetch-context
-Coordinator:   https://nextus.app.n8n.cloud/webhook/mco-followup
-Aimfox Accept: https://nextus.app.n8n.cloud/webhook/mco-aimfox-accepted
+Write Event:   https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-write-event
+Fetch Context: https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-fetch-context
+Coordinator:   https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-followup
+Aimfox Accept: https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-aimfox-accepted
 ```
 
 ### External Services
 - **Monday.com** board `18399476470` — pipeline tracking. Write Event creates items, posts updates, sets intent + channel columns.
 - **Aimfox API** `https://api.aimfox.com/api/v2` — LinkedIn messaging. Token stored in workflow nodes.
-- **Gmail** `anik@nextus.ai` — warm follow-up emails sent by the Coordinator.
-- **Anthropic** credential ID in n8n: `tFYLbQt9S6IzWYNd`, model: `claude-sonnet-4-6`
+- **Gmail** `team@flowticsai.com` (sender name: `Flowtics AI`) — n8n credential `Gmail account` (ID `IC6TPjXMVxTyn2R9`). Used by Coordinator and Gmail Reply Agent.
+- **Anthropic** n8n credential `Anthropic account 2` (ID `WEpOCYlwQtWIw3jK`), model: `claude-sonnet-4-6`
 
 ---
 
@@ -116,10 +120,15 @@ Pending — workflow not built yet. Waiting for Retell AI JSON workflow files.
 |---|---|
 | Lead replies on LinkedIn → AI replies → logged to Supabase | Live |
 | Lead marked Interested on LinkedIn → email follow-up queued | Live |
-| Dispatcher fires every 15 min → Coordinator sends email follow-up | Live |
+| Dispatcher fires every 15 min → Coordinator sends email from team@flowticsai.com | Live |
 | Connection accepted → personalised opening LinkedIn message sent | Live |
-| Lead replies to follow-up email → AI replies → logged | **Not active** (Gmail agent needs credential + activation) |
-| Voice/SMS call ends → logged to Supabase | **Not built** (Retell handler pending) |
+| Lead replies to follow-up email → AI replies → logged | Live (Gmail Reply Agent active) |
+| Post-call analysis triggered via webhook | Live (Post Call Analysis — MCO) |
+| Flowtics AI outbound call agent | Live (Flowtics AI Call Agent — MCO) |
+| Aimfox data fetched → written to Google Sheets | Live (Aimfox Data Fetching MCO) |
+| Aimfox responded event handling | Live (MCO - Aimfox Responded) |
+| Voice/SMS call → logged to Supabase via Retell | **Not built** (Retell handler pending) |
+| Retool dashboard | **Not built** |
 
 ---
 
