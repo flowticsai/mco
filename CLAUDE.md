@@ -91,13 +91,16 @@ Write Event:   https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-write-event
 Fetch Context: https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-fetch-context
 Coordinator:   https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-followup
 Aimfox Accept: https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-aimfox-accepted
+Call Agent:    https://n8n-1404.n8n.whiteserverdns.com/webhook/3adf4681-721b-452e-94b3-5618887a15c4
+Post Call:     https://n8n-1404.n8n.whiteserverdns.com/webhook/9cdd28e8-7cfd-4765-a623-cda2d1b9f7a7
 ```
 
 ### External Services
-- **Monday.com** board `18399476470` — pipeline tracking. Write Event creates items, posts updates, sets intent + channel columns.
 - **Aimfox API** `https://api.aimfox.com/api/v2` — LinkedIn messaging. Token stored in workflow nodes.
 - **Gmail** `team@flowticsai.com` (sender name: `Flowtics AI`) — n8n credential `Gmail account` (ID `IC6TPjXMVxTyn2R9`). Used by Coordinator and Gmail Reply Agent.
-- **Anthropic** n8n credential `Anthropic account 2` (ID `WEpOCYlwQtWIw3jK`), model: `claude-sonnet-4-6`
+- **Anthropic** n8n credential `Anthropic account 2` (ID `WEpOCYlwQtWIw3jK`), model: `claude-sonnet-4-5-20250929`
+- **Retell AI** — outbound calls from `+15722124790`, agent `agent_ff863b1414049444c174360809` (Maya - Flowtics AI). Booking link: `https://calendly.com/mahfujurrahman511351/30min`. Post-call webhook logs to Supabase via Write Event.
+- **OpenAI** `gpt-4o-mini` — used by Call Agent to summarise prior conversation context before each Retell call.
 
 ---
 
@@ -109,8 +112,8 @@ The single write path for the entire system. Required fields: `event_id` (UUID, 
 ### `fetch_cross_channel_context.md`
 Returns a formatted `context_block` text for injection into AI agent prompts. Required: `lead_email`. Optional: `requesting_channel` (prepends a channel-awareness header), `max_events` (default 20).
 
-### `retell_webhook_handler.md`
-Pending — workflow not built yet. Waiting for Retell AI JSON workflow files.
+### Call Agent + Post Call Analysis
+The call pipeline is fully built. The Call Agent (`xE8mFF8HxPaSXNmi`) runs on schedule every 4 hours AND accepts on-demand webhook triggers. It fetches pending `voice` follow-ups from `follow_up_queue`, summarises prior context with GPT-4o-mini, then fires a Retell outbound call. After the call, Retell fires `call_analyzed` to the Post Call Analysis webhook (`r8XKHCnL4vju2E4j`), which writes the call summary to Supabase. The `Unified Input` node in the Call Agent normalises data from both the schedule and webhook paths so downstream nodes work identically.
 
 ---
 
@@ -123,8 +126,8 @@ Pending — workflow not built yet. Waiting for Retell AI JSON workflow files.
 | Dispatcher fires every 15 min → Coordinator sends email from team@flowticsai.com | Live |
 | Connection accepted → personalised opening LinkedIn message sent | Live |
 | Lead replies to follow-up email → AI replies → logged | Live (Gmail Reply Agent active) |
-| Post-call analysis triggered via webhook | Live (Post Call Analysis — MCO) |
-| Flowtics AI outbound call agent | Live (Flowtics AI Call Agent — MCO) |
+| Post-call analysis triggered via webhook → logged to Supabase | Live |
+| Flowtics AI outbound call agent — schedule (every 4h) + on-demand webhook | Live |
 | Aimfox data fetched → written to Google Sheets | Live (Aimfox Data Fetching MCO) |
 | Aimfox responded event handling | Live (MCO - Aimfox Responded) |
 | Voice/SMS call → logged to Supabase via Retell | **Not built** (Retell handler pending) |

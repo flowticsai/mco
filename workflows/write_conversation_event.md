@@ -1,7 +1,7 @@
 # Write Conversation Event
 
 ## Objective
-Record every lead interaction across all channels (email, LinkedIn, voice, SMS) into the unified Supabase store and keep Monday.com in sync. This sub-workflow is the single write path — all channel workflows call this instead of writing to storage themselves.
+Record every lead interaction across all channels (email, LinkedIn, voice, SMS) into the unified Supabase store and sync to Notion CRM. This sub-workflow is the single write path — all channel workflows call this instead of writing to storage themselves.
 
 ## When to Use
 Call this immediately after any of the following:

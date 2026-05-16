@@ -227,11 +227,19 @@ These are called directly by MCO workflows — not raw SQL.
 
 ## External Platform Connections
 
-### Monday.com
-**Board ID:** `18399476470`  
-**Token:** Stored inside Write Event's Setup node  
-**Used by:** Write Event only  
-**What MCO does:** Creates items for new leads, posts conversation updates, updates intent + channel columns
+### Retell AI
+**Outbound number:** `+15722124790`  
+**Agent:** `agent_ff863b1414049444c174360809` (Maya — Flowtics AI)  
+**API key:** stored in `.env` as `RETELL_API_KEY`  
+**Booking link passed to agent:** `https://calendly.com/mahfujurrahman511351/30min`  
+**Used by:** Flowtics AI Call Agent — MCO  
+**Post-call webhook:** `POST /webhook/9cdd28e8-7cfd-4765-a623-cda2d1b9f7a7` — filters on `call_analyzed` event, logs call summary to Supabase via Write Event  
+**Dynamic variables passed per call:** `first_name`, `company_name`, `booking_link`, `previous_conversation_summary`, `lead_email`
+
+### OpenAI
+**Model:** `gpt-4o-mini`  
+**API key:** hardcoded in Call Agent `Summarize Prior Conversation` node  
+**Used by:** Flowtics AI Call Agent — MCO (summarises prior cross-channel context into ≤180-word brief for the voice agent)
 
 ### Gmail
 **Account:** `team@flowticsai.com` (Flowtics AI)  
