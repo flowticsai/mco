@@ -1,6 +1,6 @@
 # MCO — Multi-Channel Outreach System
 **Full System Documentation**
-**Date:** 2026-05-16
+**Last Updated:** 2026-05-17 (Session 2)
 **Instance:** n8n-1404.n8n.whiteserverdns.com
 
 ---
@@ -18,15 +18,13 @@ The core problem MCO solves is channel amnesia. Without it, a lead might get a L
 MCO is built on three layers:
 
 **Layer 1 — Workflows (Instructions)**
-Markdown SOPs in `workflows/` that define what to do, when, and how. These are the operating manuals for the system.
+Markdown SOPs in `workflows/` that define what to do, when, and how.
 
 **Layer 2 — Agents (Decision-Making)**
 n8n workflows that read the SOPs, call the right tools in sequence, handle failures, and coordinate between services.
 
 **Layer 3 — Tools (Execution)**
 Python scripts in `tools/` and HTTP API calls that do the deterministic work — database writes, API calls, data transformations.
-
-The separation matters because AI handles reasoning unreliably at scale. By keeping probabilistic decisions (Claude generating a reply, Gemini classifying intent) separate from deterministic execution (writing to Supabase, calling Retell), the system stays reliable even as it grows.
 
 ---
 
@@ -55,7 +53,7 @@ One row per lead. The canonical identity record.
 | `first_seen_at` | timestamptz | When the lead first appeared in the system |
 | `last_activity_at` | timestamptz | Timestamp of most recent interaction across any channel |
 | `last_active_channel` | text | Which channel had the most recent interaction |
-| `monday_item_id` | text | The Monday.com item ID for this lead on board 18399476470 |
+| `monday_item_id` | text | Legacy column — no longer written by MCO. Monday CRM removed from system |
 | `clay_enriched` | boolean | Whether Clay has enriched this lead's data |
 | `overall_intent` | text | The highest intent level ever reached. Never demotes. Values: `unknown → no_action → not_interested → referral → already_have_contract → interested → booking` |
 | `overall_intent_updated_at` | timestamptz | When intent last changed |
@@ -64,9 +62,7 @@ One row per lead. The canonical identity record.
 | `notes` | text | Free-form notes |
 | `created_at` | timestamptz | Row creation timestamp |
 
-**Current data:** 3 leads (all test data — `direct.test@example.com`, `mco-test-lead@example.com`, `e2e.test@example.com`)
-
-**Key behaviour:** Lead records are upserted on every write event via the Postgres RPC function `upsert_lead()`. If the lead exists, only fields that have changed are updated. `overall_intent` never demotes — if a lead was `interested` and a new event comes in with `no_action`, the intent stays `interested`.
+**Key behaviour:** Lead records are upserted on every write event via the Postgres RPC function `upsert_lead()`. `overall_intent` never demotes — if a lead was `interested` and a new event comes in with `no_action`, the intent stays `interested`.
 
 ---
 
@@ -84,11 +80,9 @@ Every single interaction across every channel. The complete cross-channel timeli
 | `content_type` | text | `message`, `transcript`, or `summary` |
 | `sender_name` | text | Name of who sent the message |
 | `intent` | text | Intent classification for this specific event |
-| `metadata_json` | jsonb | Arbitrary metadata (call_id, duration_ms, recording_url, agent_id, etc.) |
+| `metadata_json` | jsonb | Arbitrary metadata (call_id, duration_ms, recording_url, aimfox_account_id, conversation_urn, etc.) |
 | `workflow_execution_id` | text | n8n execution ID for traceability |
 | `written_at` | timestamptz | When this row was written to Supabase |
-
-**Current data:** 10 rows — LinkedIn messages, email outbound, and 4 voice call entries from Retell
 
 **Key behaviour:** The `event_id` deduplication means the write endpoint can be called multiple times for the same event without double-writing. This is critical because n8n retries on timeout.
 
@@ -102,19 +96,21 @@ Queued cross-channel follow-ups waiting to be dispatched.
 | `queue_id` | uuid (PK) | Unique identifier |
 | `lead_email` | text (FK → leads) | Which lead to follow up with |
 | `trigger_channel` | text | Which channel triggered this follow-up (e.g. `linkedin`) |
-| `target_channel` | text | Which channel to send the follow-up on (`email`, `voice`, `linkedin`, `sms`) |
+| `target_channel` | text | Which channel to send the follow-up on (`email`, `voice`, `linkedin`) |
 | `trigger_event_id` | text | The conversation event that triggered this queue entry |
 | `scheduled_for` | timestamptz | When this follow-up should be sent (dispatchers check `<= now()`) |
-| `status` | text | `pending` or `sent` |
+| `status` | text | `pending`, `sent`, or `cancelled` |
 | `follow_up_context` | text | Context string passed to the Coordinator to personalise the message |
 | `sent_at` | timestamptz | When it was dispatched |
-| `created_at` | timestamptz | When the row was created |
+| `created_at` | timestamptz | Row creation timestamp |
 
-**Current data:** 3 rows — 2 stale pending rows from May 4 tests (email + sms for `mco-test-lead@example.com`), 1 voice row for `e2e.test@example.com`
+**Follow-up rules (as of 2026-05-17):**
+- **Delay:** 3 minutes (testing). Change `3*60*1000` → `30*60*1000` in `Build Queue Rows` node for production (30 min)
+- **Max follow-ups:** 2 per lead per channel. After 2 sent rows exist for a lead+channel, no more are queued
+- **On inbound reply:** All `pending` rows for that lead on the **same channel** are rescheduled to `now + 3 min`. Other channels are unaffected
+- **Sequential queueing:** After each follow-up is sent, the Coordinator's `Queue Next Follow-Up?` node checks sent count and inserts the next row if under the limit
 
-**Note:** The 2 stale rows from May 4 should be cleared: `DELETE FROM follow_up_queue WHERE created_at < '2026-05-10' AND status = 'pending'`
-
-**How rows are created:** When a Write Conversation Event call includes `trigger_cross_channel: true` and `target_channels: ['email', 'voice']`, the workflow inserts one queue row per channel with `scheduled_for = now() + 30 minutes`.
+**How rows are created:** When a Write Conversation Event call includes `trigger_cross_channel: true` and `target_channels: ['email', 'voice']`, the workflow inserts one queue row per channel. Initial rows are inserted at trigger time. Subsequent rows are inserted by the Coordinator after each send.
 
 ---
 
@@ -128,8 +124,6 @@ Maps phone numbers to lead emails. Used by voice/SMS channels to resolve who cal
 | `source` | text | Where this mapping came from (`retell`, `clay`, `manual`) |
 | `confidence` | text | `high`, `medium`, or `low` |
 
-**Current data:** 0 rows — no real voice traffic yet
-
 **How it gets populated:** When a Write Conversation Event call includes a `phone_e164` field, a phone_map row is upserted automatically.
 
 ---
@@ -138,7 +132,7 @@ Maps phone numbers to lead emails. Used by voice/SMS channels to resolve who cal
 **URL:** `https://n8n-1404.n8n.whiteserverdns.com`
 **API Version:** v1
 
-All workflows run on this instance. It replaced the previous cloud instance (`nextus.app.n8n.cloud`). All webhook URLs and internal references have been updated to point to this instance.
+All workflows run on this instance. All webhook URLs and internal references point to this instance.
 
 **Credentials configured in n8n:**
 - `gmailOAuth2` — Gmail account for sending/receiving emails
@@ -152,20 +146,7 @@ All workflows run on this instance. It replaced the previous cloud instance (`ne
 **URL:** `https://github.com/flowticsai/mco`
 **Branch:** `main`
 
-All n8n workflow JSONs are exported here. All hardcoded secrets are replaced with `REDACTED_*` placeholders before committing. The `.env` file and `.tmp/` directory are gitignored and never committed.
-
-**Files in `n8n_workflows/`:**
-- `MCO_Write_Conversation_Event.json`
-- `MCO_Fetch_Cross_Channel_Context.json`
-- `MCO_FollowUp_Queue_Dispatcher.json`
-- `MCO_Centralized_FollowUp_Coordinator.json`
-- `MCO_Aimfox_Connection_Accepted_Handler.json`
-- `Aimfox_Nextus_AI_Reply_Agent_MCO.json`
-- `MCO_Gmail_Reply_Agent.json`
-- `Flowtics_AI_Call_Agent_MCO.json`
-- `Post_Call_Analysis_MCO.json`
-- `Aimfox_Data_Fetching_MCO.json`
-- `MCO_Aimfox_Responded.json`
+All n8n workflow JSONs are exported here with `REDACTED_*` placeholders replacing hardcoded secrets. The `.env` file and `.tmp/` directory are gitignored.
 
 ---
 
@@ -173,20 +154,119 @@ All n8n workflow JSONs are exported here. All hardcoded secrets are replaced wit
 
 | Service | Role | Key Details |
 |---------|------|-------------|
-| **Aimfox** | LinkedIn automation | Sends LinkedIn messages, manages campaigns, fires webhooks on new replies and connection accepts |
-| **Retell AI** | Voice calls | Agent `agent_ff863b1414049444c174360809`, from number `+15722124790`, booking link `calendly.com/mahfujurrahman511351/30min` |
-| **Monday.com** | CRM board | Board ID `18399476470`. Every interaction posts an update. Columns: last_active_channel, overall_intent, first_channel, phone_e164 |
+| **Aimfox** | LinkedIn automation | API key: `Bearer e5cc0625-fe79-4bb8-b816-f23f80bbdbb6`. Sends messages, manages campaigns, fires webhooks on replies and connection accepts |
+| **Retell AI** | Voice calls | Agent `agent_ff863b1414049444c174360809`, from `+15722124790`, booking link `calendly.com/mahfujurrahman511351/30min` |
 | **Notion** | Lead dashboard | Database `362dc227-748f-8184-892a-c6f8f3151b07`. One page per lead, one entry per conversation |
 | **Slack** | Human approval | Channel `#linkedin_notifications` (`C0B465KKGKU`). Gmail replies require approval before sending |
-| **Clay** | Data enrichment | Referral webhook configured. Used for phone → email resolution when a caller isn't in phone_map |
-| **OpenAI** | Pre-call summarisation | gpt-4o-mini. Condenses cross-channel context into a 180-word brief before Retell places a call |
-| **Google Sheets** | Lead data log | Aimfox Data Fetching workflow appends lead data here |
+| **Clay** | Data enrichment | Referral webhook configured. Used for phone → email resolution |
+| **OpenAI** | Pre-call summarisation | gpt-4o-mini. Condenses cross-channel context into ≤180-word brief before Retell places a call |
+| **Google Sheets** | Aimfox lead log | Sheet: "Aimfox - Flowtics Demo" → tab "Data Capture". Columns: ID, Account ID, Lead ID, Conversation URN, Campaign Name. Written by Data Fetching workflow |
+| **Monday.com** | ~~CRM~~ | **Removed.** No longer used. `monday_item_id` column remains in Supabase schema but MCO no longer writes to it |
 
 ---
 
-## 4. Complete A-Z Flow
+### 3.5 MCP Servers (Claude Code)
+Configured in `C:\Users\Washi\.claude\settings.json`:
 
-This is the full lifecycle of a lead through the MCO system, from first LinkedIn reply to multi-channel follow-up.
+| Server | URL | Auth | Purpose |
+|--------|-----|------|---------|
+| `n8n-mcp` | `https://n8n-1404.n8n.whiteserverdns.com/mcp-server/http` | Bearer token | Direct n8n workflow management |
+| `aimfox` | `https://mcp.aimfox.com` | OAuth (requires login on first use) | Direct Aimfox API access — campaigns, leads, conversations |
+
+---
+
+## 4. LinkedIn Follow-Up Architecture
+
+LinkedIn follow-ups have three paths in the Coordinator, depending on what we know about the lead.
+
+### Scenario A — Has existing conversation (lead has replied before)
+`conversation_urn` is stored in `conversations.metadata_json` via the Aimfox Reply Agent.
+
+```
+Has Conversation URN? → YES
+  → LinkedIn: Reply to Conversation
+    POST /api/v2/accounts/{aimfox_account_id}/conversations/{conversation_urn}
+    Content-Type: application/json
+    body: { message: claude_generated_text }
+```
+
+### Scenario B — Connection accepted, first message (has aimfox_lead_id)
+Applies after a connection request is accepted. `aimfox_lead_id` and `aimfox_account_id` arrive via `follow_up_context` JSON in the queue row (written by the Connection Accepted Handler).
+
+```
+Has Conversation URN? → NO
+  → Has Lead ID? → YES
+    → LinkedIn: Send First Message
+      POST /api/v2/accounts/{aimfox_account_id}/conversations
+      body: { message: claude_generated_text, recipients: [aimfox_lead_id] }
+```
+
+### Scenario C — Not yet in Aimfox (lead from email/other source)
+Lead has a `linkedin_profile_url` but has never been added to Aimfox.
+
+```
+Has Conversation URN? → NO
+  → Has Lead ID? → NO
+    → Has Profile URL? → YES
+      → Add to LinkedIn Campaign
+        POST /api/v2/campaigns/6e2feb86-b9c6-4c18-87fa-c5fe5e41682f/audience/multiple
+        { type: 'profile_url', profiles: [{ profile_url, custom_variables: { CUSTOM_MESSAGE } }] }
+        → Aimfox assigns lead_id, sends connection request automatically
+      → Mark Connection Requested (send_status = 'connection_requested')
+        → Queue Next Follow-Up? SKIPS — no next row queued
+        → When connection is accepted → Aimfox fires `accepted` webhook
+          → Connection Accepted Handler queues Scenario B follow-up
+    → Has Profile URL? → NO → Skip
+```
+
+**Connection Accepted Handler → Write Event chain:**
+When Aimfox fires the `accepted` webhook, the Connection Accepted Handler posts to Write Event with:
+- `channel: 'linkedin'`, `direction: 'inbound'`, `content: 'LinkedIn connection request accepted.'`
+- `trigger_cross_channel: true`, `target_channels: ['linkedin']`
+- `follow_up_context: JSON.stringify({ aimfox_lead_id, aimfox_account_id })`
+
+Write Event queues one `target_channel: 'linkedin'` row. Coordinator picks it up and runs Scenario B.
+
+**Aimfox follow-up campaign:** `6e2feb86-b9c6-4c18-87fa-c5fe5e41682f`
+- Has NO message steps — MCO sends all messages directly via API
+- Campaign purpose only: enroll lead in Aimfox, trigger connection request
+
+**Aimfox Webhooks Registered:**
+
+| Name | Event | URL |
+|------|-------|-----|
+| New Reply | `new_reply` | `/webhook/ce611e21-3a9d-4a90-b75a-3c5b088c99a7` |
+| Reply | `reply` | `/webhook/3e030494-4719-491d-8291-2c9523e71c3d` |
+| Responded | `reply` | `/webhook/629054f9-748e-4411-8bc2-5931ac2436cf` |
+| Connection Accepted | `accepted` | `/webhook/mco-aimfox-accepted` |
+
+**Aimfox `accepted` event payload shape:**
+```json
+{
+  "id": "uuid",
+  "event_type": "accepted",
+  "event": {
+    "account": { "id": 685914315, "urn": "...", "email": "..." },
+    "target": { "id": 153688726, "urn": "...", "public_identifier": "...", "first_name": "...", "last_name": "...", "email": null },
+    "campaign": { "id": "...", "name": "..." }
+  }
+}
+```
+Note: `event.target.email` is often null for LinkedIn leads. Handler falls back to `urn_{public_identifier}@linkedin.placeholder`.
+
+### Key Aimfox API Endpoints
+
+| Action | Endpoint | Body |
+|--------|----------|------|
+| Reply to existing conversation | `POST /api/v2/accounts/{account_id}/conversations/{urn}` | `{ message }` (JSON) |
+| Start new conversation | `POST /api/v2/accounts/{account_id}/conversations` | `{ message, recipients: [lead_id] }` |
+| Add lead to campaign | `POST /api/v2/campaigns/{campaign_id}/audience/multiple` | `{ type: 'profile_url', profiles: [{ profile_url, custom_variables }] }` |
+
+---
+
+## 5. Complete A-Z Flow
+
+### LinkedIn Lead — First Interested
 
 ```
 [LEAD REPLIES ON LINKEDIN]
@@ -195,244 +275,226 @@ This is the full lifecycle of a lead through the MCO system, from first LinkedIn
 Aimfox fires webhook → Aimfox Nextus AI Reply Agent — MCO
          │
          ├─ AI reads thread, classifies intent
-         ├─ Generates reply, sends it via Aimfox
+         ├─ Generates reply, sends via Aimfox
          │
-         ├─ [EVERY REPLY — returning lead]
-         │   MCO: Write Returning
-         │   → Checks Supabase: lead EXISTS?
-         │       YES → Write inbound + outbound to Supabase
-         │       NO  → Do nothing (not our tracked lead yet)
+         ├─ [RETURNING LEAD — already in Supabase]
+         │   MCO: Write Returning → writes inbound + outbound
          │
-         └─ [LEAD MARKED INTERESTED — new lead]
+         └─ [NEW LEAD — marked Interested, not in Supabase]
              MCO: Write First Interested
-             → Checks Supabase: lead EXISTS?
-                 YES → Do nothing (returning lead, already handled above)
-                 NO  → 1. Write full historical thread (seed from Build Seed B1)
-                        2. Write current inbound (intent=interested,
-                           trigger_cross_channel=true,
-                           target_channels=['email','voice'])
-                        3. Write our outbound reply
-                        4. → MCO Write Conversation Event fires
+             → Writes full historical thread (seed)
+             → Writes inbound event:
+               intent=interested
+               trigger_cross_channel=true
+               target_channels=['email', 'voice']
+             → Writes outbound reply
+             → MCO Write Conversation Event fires → queues email + voice follow-ups
 ```
 
+### Write Conversation Event
+
 ```
-[MCO WRITE CONVERSATION EVENT — triggered by any channel]
+[MCO WRITE CONVERSATION EVENT]
          │
          ▼
-Webhook receives payload
-         │
-         ├─ Setup & Validate
-         │   Validates required fields: event_id, lead_email, channel,
-         │   direction, content, timestamp
-         │   Validates channel ∈ {email, linkedin, voice, sms}
-         │   Validates direction ∈ {inbound, outbound}
-         │   Validates intent value
-         │
-         ├─ Upsert Lead (Postgres RPC: upsert_lead)
-         │   Creates lead if new, updates if returning
-         │   Intent never demotes
-         │
-         ├─ Merge Lead Data
-         │   Pulls monday_item_id and overall_intent from RPC response
-         │
-         ├─ Insert Conversation
-         │   Inserts row into conversations table
-         │   If duplicate event_id → returns "already written", stops
-         │
-         ├─ Has Phone? → Upsert PhoneMap (if phone_e164 in payload)
-         │
-         ├─ Format Monday Update → Create/Update Monday.com item
-         │   Every interaction posts a timestamped update to board 18399476470
-         │
-         ├─ Notion: Query Lead (by lead_email in leads database)
-         │   → IF lead found → Notion: Update Lead (intent, last channel, last activity)
-         │   → IF lead not found → Notion: Create Lead (new page with full profile)
-         │   → Notion: Create Conversation (new entry in conversations DB)
-         │
-         └─ Cross-Channel? (if trigger_cross_channel=true)
-             → Build Queue Rows
-               One row per target_channel, scheduled_for = now + 30 min
-             → Insert FollowUpQueue
-             → Return OK
-```
-
-```
-[FOLLOW-UP QUEUE DISPATCHER — runs every 15 minutes]
+Setup & Validate → fields validated, phone normalised
          │
          ▼
-Fetches follow_up_queue WHERE status='pending' AND scheduled_for <= now()
-         │
-         ├─ Split rows, process one at a time
-         │
-         ├─ [target_channel = linkedin]
-         │   Fetch LinkedIn metadata from Aimfox
-         │   → Call Centralized Follow-Up Coordinator
-         │
-         └─ [target_channel = email / other]
-             → Call Centralized Follow-Up Coordinator directly
-```
-
-```
-[CENTRALIZED FOLLOW-UP COORDINATOR — called by Dispatcher]
+Cancel Pending On Inbound
+  IF direction='inbound': reschedule all pending rows for this lead+channel
+  to now + 3 min (same channel only, other channels unaffected)
          │
          ▼
-Receives queued follow-up item
-         │
-         ├─ Fetch Cross-Channel Context (MCO Fetch Context webhook)
-         │   Returns full timeline of all interactions for this lead
-         │
-         ├─ Route by Channel
-         │
-         ├─ [EMAIL]
-         │   Claude generates personalised email using cross-channel context
-         │   → Send via Gmail (md.imranhanik@gmail.com)
-         │   → Log outbound to Supabase (MCO Write Event)
-         │   → Mark queue row as sent
-         │
-         └─ [LINKEDIN]
-             Claude generates personalised LinkedIn message
-             → Has profile URL?
-                 YES → Add to Aimfox campaign → message sent via LinkedIn
-                 NO  → Skip (log reason)
-             → Log outbound to Supabase
-             → Mark queue row as sent
-```
-
-```
-[LEAD REPLIES TO OUR EMAIL]
+Upsert Lead (RPC: upsert_lead) → intent never demotes
          │
          ▼
-Gmail Trigger fires → MCO Gmail Reply Agent
-         │
-         ├─ Extract & Filter
-         │   Skips: non-reply subjects (no "Re:"), noreply senders, empty body
-         │
-         ├─ Supabase: Check Outbound
-         │   Looks for existing outbound email to this lead_email
-         │   If none found → not our thread → stops silently
-         │
-         ├─ MCO: Fetch Context
-         │   Gets full cross-channel history
-         │
-         ├─ MCO: Write Inbound
-         │   Logs the lead's email reply to Supabase
-         │
-         ├─ Text Classifier (Gemini)
-         │   Needs reply? → Reply Agent
-         │   No reply needed? → No Operation, stops
-         │
-         ├─ Reply Agent (Claude + Knowledgebase)
-         │   Generates reply using full cross-channel context
-         │
-         ├─ Slack: sendAndWait → #linkedin_notifications
-         │   Human approves or disapproves
-         │
-         ├─ [Approved] → Send Gmail Reply (same thread via threadId)
-         │               → MCO: Write Outbound (logs sent reply)
-         │
-         └─ [Disapproved] → stops silently
-```
-
-```
-[LINKEDIN CONNECTION ACCEPTED]
+Merge Lead Data → pulls overall_intent from RPC response
          │
          ▼
-Aimfox fires webhook → MCO Aimfox Connection Accepted Handler
+Insert Conversation → deduplication on event_id
          │
-         ├─ Extract Fields from Aimfox payload
+         ├─ [DUPLICATE] → Return Already Written, stops
          │
-         ├─ Get Lead Custom Variables (LEAD_EMAIL from Aimfox)
-         │   No LEAD_EMAIL? → Skip → Return OK
+         ▼
+Has Phone? → Upsert PhoneMap (if phone_e164 present)
          │
-         ├─ MCO: Fetch Context
-         │   Gets cross-channel history for this lead
+         ▼
+Notion: Query Lead → Update or Create lead page → Create Conversation entry
          │
-         ├─ Generate Message (Claude)
-         │   Personalised opening message avoiding repeating anything
-         │   already said on other channels
+         ▼
+Cross-Channel? (trigger_cross_channel=true)
+         │ YES
+         ▼
+Build Queue Rows → one row per target_channel
+  scheduled_for = now + 3 min (testing) / now + 30 min (production)
          │
-         ├─ Send via Aimfox: Start Conversation
-         │
-         └─ Log to Supabase (MCO Write Event, channel=linkedin, direction=outbound)
+         ▼
+Insert FollowUpQueue → Return OK
 ```
 
+### Follow-Up Queue Processing
+
 ```
-[VOICE FOLLOW-UP — Flowtics AI Call Agent, runs every 4 hours]
+[DISPATCHER — every 15 minutes]
+         │
+         ▼
+Fetch follow_up_queue WHERE status='pending' AND scheduled_for <= now()
+         │
+         ▼
+For each row:
+  Fetch LinkedIn metadata (aimfox_account_id, conversation_urn) from conversations
+  → Call Centralized Follow-Up Coordinator
+
+[COORDINATOR]
+         │
+         ▼
+Fetch Cross-Channel Context → Merge Context
+         │
+         ▼
+Route by Channel
+  │
+  ├─ [EMAIL]
+  │   Claude generates email → Send via Gmail
+  │   → Log to Supabase → Mark Queue Sent
+  │   → Queue Next Follow-Up? (if sent count < 2, insert next row at now + 3 min)
+  │
+  └─ [LINKEDIN]
+      Claude generates message
+        │
+        ├─ Has conversation_urn? → YES (Scenario A)
+        │   → Reply to Conversation (JSON body: { message })
+        │
+        ├─ Has conversation_urn? → NO → Has aimfox_lead_id? → YES (Scenario B)
+        │   → Send First Message via POST /conversations { message, recipients: [lead_id] }
+        │
+        └─ Has aimfox_lead_id? → NO → Has profile_url? → YES (Scenario C)
+            → Add to Aimfox campaign → Mark connection_requested
+            → Queue Next Follow-Up? SKIPS (waits for Connection Accepted webhook)
+            Has profile_url? → NO → Skip
+      │
+      → Log to Supabase → Mark Queue Sent
+      → Queue Next Follow-Up? (if sent count < 2, insert next row)
+```
+
+### Voice Follow-Up
+
+```
+[FLOWTICS AI CALL AGENT — every 4 hours]
          │
          ▼
 Fetch follow_up_queue WHERE target_channel='voice' AND status='pending'
 AND scheduled_for <= now() LIMIT 25
          │
-         ├─ Loop one lead at a time
-         │
-         ├─ Fetch Lead Record from Supabase
-         │   Gets: full_name, company, phone_e164, overall_intent
-         │
-         ├─ phone_e164 missing? → SKIP (phone guard) — return []
-         │
-         ├─ MCO: Fetch Context
-         │   Gets full cross-channel history
-         │
-         ├─ Build OpenAI Request
-         │   Prepares prompt for gpt-4o-mini
-         │
-         ├─ Summarize Prior Conversation (OpenAI gpt-4o-mini)
-         │   Condenses context into ≤180-word brief covering:
-         │   who the lead is, what they're interested in, pain points,
-         │   objections, commitments made, last channel + recency
-         │
-         ├─ Prepare Retell Variables
-         │   Sets: first_name, company_name, phone_e164, lead_email,
-         │   previous_conversation_summary, queue_id
-         │
-         ├─ Build Retell Request
-         │   from_number: +15722124790
-         │   to_number: lead's phone_e164
-         │   override_agent_id: agent_ff863b1414049444c174360809
-         │   dynamic_variables: first_name, company_name, booking_link,
-         │                       previous_conversation_summary, lead_email
-         │
-         ├─ Retell: Create Phone Call (POST /v2/create-phone-call)
-         │
-         └─ Mark Queue Sent (PATCH follow_up_queue status='sent')
-```
-
-```
-[AFTER THE CALL ENDS — Post Call Analysis MCO]
+         ▼
+For each lead:
+  Fetch lead record (phone_e164, name, company)
+  phone_e164 missing? → SKIP (phone guard, return [])
          │
          ▼
-Retell fires post-call webhook →
-https://n8n-1404.n8n.whiteserverdns.com/webhook/9cdd28e8-7cfd-4765-a623-cda2d1b9f7a7
+Fetch Cross-Channel Context
+  → Summarize via OpenAI gpt-4o-mini (≤180-word brief)
          │
-         ├─ Filter: event == 'call_analyzed' only
-         │   (Retell sends multiple events — only process the final analysis)
+         ▼
+Build Retell Request
+  from: +15722124790
+  to: lead's phone_e164
+  agent: agent_ff863b1414049444c174360809
+  dynamic vars: first_name, company_name, booking_link,
+                previous_conversation_summary, lead_email
          │
-         ├─ Build MCO Write Payload
-         │   Extracts from Retell payload:
-         │   - lead_email from retell_llm_dynamic_variables.lead_email
-         │   - event_id: deterministic UUID from call_id
-         │   - content: call_analysis.call_summary or transcript
-         │   - intent: qualified_status=true → 'interested', else 'unknown'
-         │   - phone_e164: call.to_number (validated E.164)
-         │   - sender_name: 'Maya (Flowtics AI)'
-         │   - metadata: call_id, agent_id, qualified_status, recording_url
+         ▼
+Retell: Create Phone Call → Mark Queue Sent
+```
+
+### Post-Call Analysis
+
+```
+[POST CALL ANALYSIS — Retell webhook]
          │
-         └─ POST /mco-write-event
-             Logs the call to Supabase conversations table
-             Updates lead record (phone_e164, last_active_channel=voice)
-             Posts update to Monday.com
-             Updates Notion lead page
+         ▼
+Filter: event == 'call_analyzed' only
+         │
+         ▼
+Build MCO Write Payload:
+  lead_email from retell_llm_dynamic_variables.lead_email
+  event_id: deterministic UUID from call_id
+  channel='voice', direction='outbound'
+  content: call_analysis.call_summary
+  intent: qualified_status=true → 'interested', else 'unknown'
+  metadata: call_id, agent_id, qualified_status, recording_url
+         │
+         ▼
+POST /mco-write-event → logs to Supabase + Notion
+```
+
+### Gmail Reply Flow
+
+```
+[GMAIL REPLY AGENT]
+         │
+         ▼
+Gmail Trigger → Extract & Filter
+  Skips: non-replies, noreply senders, empty body
+         │
+         ▼
+Supabase: Check Outbound → not our thread? → stop
+         │
+         ▼
+MCO: Fetch Context → Write Inbound
+         │
+         ▼
+Text Classifier (Gemini) → needs reply?
+  NO → stop
+  YES → Claude generates reply
+         │
+         ▼
+Slack sendAndWait → #linkedin_notifications (human approval)
+  Approve → Send Gmail Reply → MCO: Write Outbound
+  Disapprove → stop
+```
+
+### Connection Accepted Flow
+
+```
+[CONNECTION ACCEPTED HANDLER]
+         │
+         ▼
+Aimfox fires `accepted` webhook
+         │
+         ▼
+Extract Fields
+  Parses: event.account.id → aimfox_account_id
+          event.target.id  → aimfox_lead_id
+          event.target.urn → lead_urn
+          event.target.email (may be null) → lead_email
+          event.target.public_identifier  → for linkedin_profile_url
+  Email null? → lead_email = urn_{public_identifier}@linkedin.placeholder
+         │
+         ▼
+Has Email? → NO → Skip → Return OK
+         │ YES
+         ▼
+Trigger Write Event
+  POST /mco-write-event with:
+    channel: 'linkedin', direction: 'inbound'
+    content: 'LinkedIn connection request accepted.'
+    trigger_cross_channel: true
+    target_channels: ['linkedin']
+    follow_up_context: JSON.stringify({ aimfox_lead_id, aimfox_account_id })
+         │
+         ▼
+Write Event queues linkedin follow-up row in follow_up_queue
+  → Dispatcher picks it up → Coordinator runs Scenario B
+  → Coordinator generates contextual first message → sends via API
 ```
 
 ---
 
-## 5. Workflow Reference — All 11 Workflows
+## 6. Workflow Reference — All 11 Workflows
 
-### 5.1 MCO - Write Conversation Event
-**ID:** `5qOo5YzrPnW8Uj9g` | **Status:** ACTIVE | **Nodes:** 20
+### 6.1 MCO - Write Conversation Event
+**ID:** `5qOo5YzrPnW8Uj9g` | **Status:** ACTIVE | **Nodes:** 21
 **Webhook:** `POST https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-write-event`
-
-The single write path for the entire system. Every channel, every agent, every direction calls this one endpoint to record interactions.
 
 **Required payload fields:**
 ```json
@@ -442,7 +504,7 @@ The single write path for the entire system. Every channel, every agent, every d
   "channel": "linkedin | email | voice | sms",
   "direction": "inbound | outbound",
   "content": "message text or transcript",
-  "timestamp": "2026-05-16T10:00:00Z"
+  "timestamp": "2026-05-17T10:00:00Z"
 }
 ```
 
@@ -465,205 +527,155 @@ The single write path for the entire system. Every channel, every agent, every d
 **Node flow:**
 1. `Webhook` — receives POST
 2. `Setup & Validate` — validates all fields, normalises phone
-3. `Upsert Lead` — RPC call to Postgres `upsert_lead()` function
-4. `Merge Lead Data` — merges RPC response (monday_item_id, overall_intent)
-5. `Insert Conversation` — inserts into conversations table
-6. `Check Insert Result` — was it a new row or duplicate?
-7. `Was Duplicate?` — if duplicate → Return Already Written, stops
-8. `Has Phone?` — if phone present → `Upsert PhoneMap`
-9. `Format Monday Update` — builds formatted update text
-10. `Create Monday Item` — creates or updates Monday.com item
-11. `Extract Monday ID` — pulls item ID from response
-12. `Has Monday Item?` — posts update if item exists
-13. `Notion: Query Lead` — searches Notion leads database by email
-14. `Notion: Extract Lead ID` — parses query response, builds update props
-15. `IF: Notion Lead Found?` — branches on whether lead page exists
-16. `Notion: Update Lead` OR `Notion: Create Lead` — upserts lead page
-17. `Notion: Create Conversation` — appends conversation entry to Notion
-18. `Cross-Channel?` — if trigger_cross_channel=true → queue follow-ups
-19. `Build Queue Rows` — creates one row per target_channel
-20. `Insert FollowUpQueue` — inserts into follow_up_queue table
+3. `Cancel Pending On Inbound` — **NEW.** If direction='inbound', reschedules all pending queue rows for this lead+channel to now+3 min
+4. `Upsert Lead` — RPC call to Postgres `upsert_lead()` function
+5. `Merge Lead Data` — merges RPC response (overall_intent)
+6. `Insert Conversation` — inserts into conversations table
+7. `Check Insert Result` — was it a new row or duplicate?
+8. `Was Duplicate?` — if duplicate → Return Already Written, stops
+9. `Has Phone?` — if phone present → `Upsert PhoneMap`
+10. `Notion: Query Lead` — searches Notion leads database by email
+11. `Notion: Extract Lead ID` — parses query response
+12. `IF: Notion Lead Found?` — branches on whether lead page exists
+13. `Notion: Update Lead` OR `Notion: Create Lead` — upserts lead page
+14. `Notion: Create Conversation` — appends conversation entry to Notion
+15. `Cross-Channel?` — if trigger_cross_channel=true → queue follow-ups
+16. `Build Queue Rows` — creates one row per target_channel, scheduled_for = now + 3 min (testing)
+17. `Insert FollowUpQueue` — inserts into follow_up_queue table
+18. `Return OK`
+
+**Note:** Monday.com nodes fully removed. Notion is the only CRM integration active.
 
 ---
 
-### 5.2 MCO - Fetch Cross-Channel Context
+### 6.2 MCO - Fetch Cross-Channel Context
 **ID:** `UJoDCfkmD3NJHktk` | **Status:** ACTIVE | **Nodes:** 5
 **Webhook:** `POST https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-fetch-context`
 
-Called by every AI agent before generating any reply. Returns the complete cross-channel history for a lead in a formatted text block.
-
-**Required payload:**
-```json
-{ "lead_email": "lead@example.com" }
-```
-
-**Response:**
-```json
-{
-  "context_block": "=== Cross-Channel Conversation History ===\nLead: John Smith...",
-  "lead": { "full_name": "...", "overall_intent": "interested", "last_active_channel": "linkedin" },
-  "event_count": 7,
-  "overall_intent": "interested"
-}
-```
+Called by every AI agent before generating any reply. Returns complete cross-channel history for a lead.
 
 **Node flow:**
-1. `Webhook` — receives POST
-2. `Setup & Validate` — extracts and validates lead_email
-3. `Fetch Context RPC` — calls Postgres RPC `get_lead_context(lead_email)`
-4. `Format Context Block` — builds human-readable text block for AI consumption
-5. `Return Context` — responds with structured JSON
+1. `Webhook` → 2. `Setup & Validate` → 3. `Fetch Context RPC` → 4. `Format Context Block` → 5. `Return Context`
 
 ---
 
-### 5.3 MCO - FollowUp Queue Dispatcher
+### 6.3 MCO - FollowUp Queue Dispatcher
 **ID:** `3ju6z4oJcWJqskBN` | **Status:** ACTIVE | **Nodes:** 9
 **Trigger:** Cron every 15 minutes
 
-Polls `follow_up_queue` for pending items whose `scheduled_for` has passed and routes them to the Centralized Coordinator.
+Polls `follow_up_queue` for pending items and routes to the Coordinator.
 
 **Node flow:**
-1. `Every 15 Minutes` — cron trigger
-2. `Config` — sets base URLs and credentials
-3. `Fetch Pending Queue` — `SELECT * FROM follow_up_queue WHERE status='pending' AND scheduled_for <= now()`
-4. `Split Rows` — processes one item at a time
-5. `LinkedIn?` — branches on target_channel
-6. `[LinkedIn]` → `Fetch LinkedIn Meta` → `Merge LinkedIn Meta` → `Call Coordinator`
-7. `[Email/Other]` → `Call Coordinator` directly
-8. `Log Result` — logs dispatch outcome
+1. `Every 15 Minutes` → 2. `Config` → 3. `Fetch Pending Queue` → 4. `Split Rows` → 5. `Fetch LinkedIn Meta` → 6. `Merge LinkedIn Meta` → 7. `Call Coordinator` → 8. `Log Result`
 
 ---
 
-### 5.4 MCO - Centralized Follow-Up Coordinator
-**ID:** `KXKcCYRnK4V8v9k7` | **Status:** ACTIVE | **Nodes:** 19
+### 6.4 MCO - Centralized Follow-Up Coordinator
+**ID:** `KXKcCYRnK4V8v9k7` | **Status:** ACTIVE | **Nodes:** 24
 **Webhook:** Internal (called by Dispatcher only)
 
-Receives a queued follow-up, fetches full context, generates a personalised message using Claude, sends it on the right channel, and marks the queue item as sent.
+**Aimfox API key:** `Bearer e5cc0625-fe79-4bb8-b816-f23f80bbdbb6`
+**LinkedIn follow-up campaign:** `6e2feb86-b9c6-4c18-87fa-c5fe5e41682f`
 
 **Node flow:**
-1. `Webhook` — receives from Dispatcher
-2. `Setup & Validate` — extracts lead_email, target_channel, context
-3. `Fetch Context` — calls MCO Fetch Context webhook
-4. `Merge Context` — merges queue data with context response
-5. `Route by Channel` — Switch node on target_channel
-6. **Email path:**
-   - `Email: Claude Model` — Anthropic Claude
-   - `Email: Generate Message` — AI Agent generates email
-   - `Email: Extract Message` — parses reply from AI
-   - `Send Email (Gmail)` — sends via md.imranhanik@gmail.com
-7. **LinkedIn path:**
-   - `LinkedIn: Claude Model` — Anthropic Claude
-   - `LinkedIn: Generate Message` — AI Agent generates message
-   - `LinkedIn: Extract Message` — parses reply
-   - `LinkedIn: Has Profile URL?` — checks if profile URL exists
-   - `Add to LinkedIn Campaign` (Aimfox) OR `LinkedIn: Skip (No URL)`
-8. `After Send` — merges both paths
-9. `Log to Supabase` — calls MCO Write Event (direction=outbound)
-10. `Mark Queue Sent` — PATCH follow_up_queue status='sent'
-11. `Return OK`
+1. `Webhook` → 2. `Setup & Validate` → 3. `Fetch Context` → 4. `Merge Context` → 5. `Route by Channel`
+
+`Merge Context` parses `follow_up_context` JSON to extract `aimfox_lead_id` and `aimfox_account_id` (set by Connection Accepted Handler via queue row).
+
+**Email branch:**
+6. `Email: Claude Model` → 7. `Email: Generate Message` → 8. `Email: Extract Message` → 9. `Send Email (Gmail)`
+
+**LinkedIn branch:**
+6. `LinkedIn: Claude Model` → 7. `LinkedIn: Generate Message` → 8. `LinkedIn: Extract Message`
+9. `LinkedIn: Has Conversation URN?`
+   - **TRUE → Scenario A:** `LinkedIn: Reply to Conversation`
+     POST `…/conversations/{conversation_urn}` — JSON body `{ message }`
+   - **FALSE → `LinkedIn: Has Lead ID?`**
+     - **TRUE → Scenario B:** `LinkedIn: Send First Message`
+       POST `…/conversations` — body `{ message, recipients: [aimfox_lead_id] }`
+     - **FALSE → `LinkedIn: Has Profile URL?` (check via skipped flag)**
+       - **TRUE → Scenario C:** `Add to LinkedIn Campaign` → `LinkedIn: Mark Connection Requested`
+         Sets `send_status = 'connection_requested'` → Queue Next Follow-Up? skips
+       - **FALSE:** `LinkedIn: Skip (No URL)`
+
+**Convergence:**
+10. `After Send` → 11. `Log to Supabase` → 12. `Mark Queue Sent`
+13. `Queue Next Follow-Up?` — Counts sent rows for lead+channel. If < 2, inserts next row at now + 3 min. Skips if voice, skipped, or connection_requested.
+14. `Return OK`
 
 ---
 
-### 5.5 MCO - Aimfox Connection Accepted Handler
-**ID:** `WTbIAJCZGtppAT91` | **Status:** ACTIVE | **Nodes:** 15
-**Webhook:** Aimfox connection accepted event
+### 6.5 MCO - Aimfox Connection Accepted Handler
+**ID:** `WTbIAJCZGtppAT91` | **Status:** ACTIVE | **Nodes:** 7
+**Trigger:** Aimfox `accepted` webhook → `POST /webhook/mco-aimfox-accepted`
 
-Fires when a LinkedIn connection request is accepted. Reads the lead's email from Aimfox custom variables, fetches cross-channel context, generates a personalised opening message, and sends it.
+Fires when a LinkedIn connection request is accepted. Does NOT generate or send a message itself — instead queues a LinkedIn follow-up via Write Event so the Coordinator handles it with full context.
+
+**Aimfox API key:** `Bearer e5cc0625-fe79-4bb8-b816-f23f80bbdbb6`
 
 **Node flow:**
-1. `Webhook` — Aimfox fires this when connection accepted
-2. `Extract Fields` — pulls profile data from payload
-3. `Get Lead Custom Variables` — fetches Aimfox custom vars for this lead
-4. `Extract LEAD_EMAIL` — reads `LEAD_EMAIL` from custom variables
-5. `Has Email?` — if no LEAD_EMAIL → `Skip → Return OK`
-6. `Fetch Context` — calls MCO Fetch Context
-7. `Merge Context` — combines lead data with context
-8. `LinkedIn: Claude Model` — Anthropic Claude
-9. `Generate Message` — crafts personalised opening message avoiding repeats
-10. `Extract Message` — parses AI output
-11. `Send via Start Conversation` — Aimfox API call
-12. `Log to Supabase` — calls MCO Write Event (channel=linkedin, direction=outbound)
-13. `Return OK`
+1. `Webhook` → 2. `Extract Fields`
+   - Maps `event.account.id` → `aimfox_account_id`
+   - Maps `event.target.id` → `aimfox_lead_id`
+   - Maps `event.target.email` → `lead_email` (null → `urn_{public_identifier}@linkedin.placeholder`)
+   - Maps `event.target.public_identifier` → `linkedin_profile_url`
+3. `Has Email?` — NO → 4. `Skip — No Email` → 5. `Return OK (Skipped)`
+6. `Trigger Write Event`
+   - Posts connection_accepted event with `target_channels: ['linkedin']`
+   - Passes `follow_up_context: JSON.stringify({ aimfox_lead_id, aimfox_account_id })`
+7. `Return OK`
 
-**Why LEAD_EMAIL matters:** LinkedIn leads arrive as profile URNs, not emails. Aimfox custom variables is the bridge that links a LinkedIn identity to a known email address in MCO.
+**Why this design:** The first LinkedIn message after connection acceptance is generated by the Coordinator (with full cross-channel context), not by this handler. This keeps message generation in one place.
 
 ---
 
-### 5.6 Aimfox Nextus AI Reply Agent — MCO
+### 6.6 Aimfox Nextus AI Reply Agent — MCO
 **ID:** `SPN1NLyHH1LcfViD` | **Status:** ACTIVE | **Nodes:** 37
 **Trigger:** Aimfox webhook (new LinkedIn message received)
 
-The main LinkedIn reply agent. Receives every new LinkedIn reply, classifies intent, generates an AI response, sends it, and writes to Supabase according to whether the lead is new or returning.
+Main LinkedIn reply agent. Classifies intent, generates reply, sends via Aimfox, writes to Supabase.
 
-**MCO integration logic (critical):**
+**target_channels currently:** `['email', 'voice']` — LinkedIn not yet added (pending sequential flow design)
 
-After `Send Reply`, the workflow checks Supabase:
-- **Lead EXISTS** → `MCO: Write Returning` — writes inbound + outbound to Supabase. Does NOT trigger cross-channel (already in system).
-- **Lead NOT in Supabase** → does nothing here.
+**MCO integration logic:**
+- **Returning lead** → `MCO: Write Returning` — writes inbound + outbound, no cross-channel trigger
+- **New lead marked Interested** → `MCO: Write First Interested` — seeds full thread, writes inbound (trigger_cross_channel=true, target_channels=['email','voice']), writes outbound reply
 
-After `Mark Interested`:
-- **Lead NOT in Supabase** → `MCO: Write First Interested` — writes the entire historical thread (seed), then the interested inbound event with `trigger_cross_channel=true, target_channels=['email','voice']`, then the outbound reply. This queues both an email and a voice follow-up.
-- **Lead EXISTS** → does nothing (handled by Write Returning above).
-
-**Intent → Action mapping:**
+**Intent → Action:**
 | Intent | Action |
 |--------|--------|
 | `interested` | Write First Interested → email + voice follow-up queued |
 | `not_interested` | No MCO write |
-| `referral` | Slack notification + AI Agent5 (referral handling) |
+| `referral` | Slack notification + referral handling |
 | `booking` | Slack notification |
 | `no_action` | Write Returning only |
 
-**Build Seed B1:** Always runs on every reply, builds a formatted payload of the full historical thread. Output is only used when Write First Interested fires (new interested lead). For returning leads, it runs but output is discarded. Negligible cost.
-
 ---
 
-### 5.7 MCO - Gmail Reply Agent
+### 6.7 MCO - Gmail Reply Agent
 **ID:** `mFBOGdMAsXRKD1Pv` | **Status:** ACTIVE | **Nodes:** 18
-**Trigger:** Gmail — new email received in connected inbox
+**Trigger:** Gmail — new email received
 
-Monitors the Gmail inbox for replies to emails sent by the Coordinator. Verifies the email is part of a thread we started, fetches context, classifies, generates reply, gets human approval via Slack, then sends.
+Monitors Gmail for replies to emails we sent. Gets human Slack approval before sending any reply.
 
 **Node flow:**
-1. `Gmail Trigger` — fires on every new email
-2. `Extract & Filter` — parses from address, skips: non-replies, noreply senders, empty body
-3. `Supabase: Check Outbound` — queries conversations for existing outbound email to this lead
-4. `Filter: Our Thread Only` — if no outbound record found → stops (not our thread)
-5. `MCO: Fetch Context` — gets full cross-channel history
-6. `Merge Context` — combines email data with context block
-7. `MCO: Write Inbound` — logs the lead's reply to Supabase
-8. `Text Classifier (Gemini)` — needs reply? or no reply needed?
-9. `[No reply needed]` → `No Operation`
-10. `[Needs reply]` → `Reply Agent (Claude + Knowledgebase)`
-11. `Edit Fields` — formats draft for Slack
-12. `Send a message (Slack sendAndWait)` — posts to `#linkedin_notifications`, waits for human decision
-13. `Switch` — Approve or Disapprove
-14. `[Approve]` → `Send Gmail Reply` (uses threadId for proper threading) → `MCO: Write Outbound`
-15. `[Disapprove]` → stops silently
-
-**Credentials:** Gmail OAuth2, Anthropic, Google Gemini (Gemini for classification, Claude for reply generation), Slack
+1. `Gmail Trigger` → 2. `Extract & Filter` → 3. `Supabase: Check Outbound` → 4. `Filter: Our Thread Only`
+5. `MCO: Fetch Context` → 6. `Merge Context` → 7. `MCO: Write Inbound`
+8. `Text Classifier (Gemini)` → needs reply?
+   - NO → `No Operation`
+   - YES → 9. `Reply Agent (Claude)` → 10. `Edit Fields` → 11. `Slack sendAndWait (#linkedin_notifications)`
+     - Approve → 12. `Send Gmail Reply` → 13. `MCO: Write Outbound`
+     - Disapprove → stop
 
 ---
 
-### 5.8 Flowtics AI Call Agent - MCO
+### 6.8 Flowtics AI Call Agent - MCO
 **ID:** `xE8mFF8HxPaSXNmi` | **Status:** ACTIVE | **Nodes:** 12
 **Trigger:** Cron every 4 hours
 
-The outbound voice caller. Polls for pending voice follow-ups, enriches each lead with cross-channel context, summarises the history for the voice agent, and places the call via Retell.
+Outbound voice caller. Polls for pending voice follow-ups and places Retell calls.
 
-**Node flow:**
-1. `Schedule Trigger` — every 4 hours
-2. `Supabase: Get Pending Voice Follow-Ups` — fetches follow_up_queue WHERE target_channel='voice' AND status='pending' AND scheduled_for <= now() LIMIT 25
-3. `Loop One Lead at a Time` — SplitInBatches (1 at a time)
-4. `Fetch Lead Record` — GET leads WHERE lead_email = queue.lead_email (gets phone, name, company)
-5. `POST /mco-fetch-context` — fetches full cross-channel history
-6. `Build OpenAI Request` — formats context into OpenAI chat prompt
-7. `Summarize Prior Conversation` — POST to OpenAI gpt-4o-mini, returns ≤180-word brief
-8. `Prepare Retell Variables` — sets: first_name, company_name, phone_e164, lead_email, previous_conversation_summary, queue_id
-9. `Build Retell Request` — assembles Retell API body. **Phone guard:** if phone_e164 is empty → returns [] → item skipped, no call placed
-10. `Retell: Create Phone Call` — POST to `https://api.retellai.com/v2/create-phone-call`
-11. `Mark Queue Sent` — PATCH follow_up_queue status='sent', sent_at=now()
-12. Loop continues to next item
+**Phone guard:** if `phone_e164` is empty → returns `[]` → item skipped, no call placed.
 
 **Retell call payload:**
 ```json
@@ -675,68 +687,42 @@ The outbound voice caller. Polls for pending voice follow-ups, enriches each lea
     "first_name": "...",
     "company_name": "...",
     "booking_link": "https://calendly.com/mahfujurrahman511351/30min",
-    "previous_conversation_summary": "180-word brief from OpenAI",
+    "previous_conversation_summary": "≤180-word OpenAI brief",
     "lead_email": "lead@example.com"
-  },
-  "metadata": {
-    "source": "n8n_flowtics_followup",
-    "queue_id": "...",
-    "lead_email": "..."
   }
 }
 ```
 
 ---
 
-### 5.9 Post Call Analysis - MCO
+### 6.9 Post Call Analysis - MCO
 **ID:** `r8XKHCnL4vju2E4j` | **Status:** ACTIVE | **Nodes:** 4
 **Webhook:** `POST https://n8n-1404.n8n.whiteserverdns.com/webhook/9cdd28e8-7cfd-4765-a623-cda2d1b9f7a7`
-**Registered in Retell:** Agent `agent_ff863b1414049444c174360809` post-call webhook
 
-Dedicated post-call handler. Retell fires this after every call ends. Extracts the call data and writes the interaction to Supabase via MCO.
-
-**Node flow:**
-1. `Webhook1` — receives Retell POST (Retell sends multiple event types)
-2. `Filter` — only passes through `event == 'call_analyzed'` (fired after Retell finishes analysis, includes summary and qualified_status)
-3. `Build MCO Write Payload` — code node that:
-   - Extracts `lead_email` from `call.retell_llm_dynamic_variables.lead_email`
-   - Generates deterministic `event_id` UUID from `call.call_id`
-   - Sets `channel='voice'`, `direction='outbound'`
-   - Uses `call_analysis.call_summary` as content (falls back to transcript)
-   - Maps `qualified_status=true` → `intent='interested'`, else `intent='unknown'`
-   - Validates `to_number` as E.164 for `phone_e164`
-   - Builds metadata: `{call_id, agent_id, qualified_status, recording_url, source:'retell_flowtics'}`
-4. `POST /mco-write-event` — writes to Supabase, Notion, Monday.com
+Receives Retell post-call webhook, filters for `call_analyzed` event, writes call summary to Supabase.
 
 ---
 
-### 5.10 Aimfox Data Fetching - MCO
+### 6.10 Aimfox Data Fetching - MCO
 **ID:** `o9l5PClHznNgZIK8` | **Status:** ACTIVE | **Nodes:** 4
 **Trigger:** Aimfox webhook
 
-Fetches lead data from Aimfox API when a lead event fires and appends the enriched data to a Google Sheet.
-
-**Node flow:**
-1. `Webhook` — Aimfox event fires
-2. `HTTP Request` — fetches lead details from Aimfox accounts API
-3. `HTTP Request1` — second Aimfox API call for additional data
-4. `Append row in sheet` — writes to Google Sheets
+Fetches lead + conversation data from Aimfox when an event fires. Appends to Google Sheet:
+- **Sheet:** "Aimfox - Flowtics Demo" → tab "Data Capture"
+- **Columns:** ID, Account ID, Lead ID, Conversation URN, Campaign Name
+- **Used by:** Aimfox Reply Agent checks Lead ID against this sheet to determine if it should run
 
 ---
 
-### 5.11 MCO - Aimfox Responded
+### 6.11 MCO - Aimfox Responded
 **ID:** `Zw7iTErdMMJjiM7g` | **Status:** ACTIVE | **Nodes:** 2
 **Trigger:** Aimfox webhook (lead responded event)
 
-Simple two-node workflow. When a lead responds to an Aimfox campaign message, marks them as "initiated" in Aimfox via the API.
-
-**Node flow:**
-1. `Responded` (Webhook) — Aimfox fires when lead responds
-2. `Mark Initiated` — POST to Aimfox leads API to update lead status
+Two-node workflow. When a lead responds to an Aimfox campaign message, labels them as "initiated" in Aimfox via the API (`label_id: c462f06b-c998-4741-821f-b0b2232c8a98`).
 
 ---
 
-## 6. Workflow Relationship Map
+## 7. Workflow Relationship Map
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -746,105 +732,97 @@ Simple two-node workflow. When a lead responds to an Aimfox campaign message, ma
          │                │                   │                 │
          ▼                ▼                   ▼                 ▼
    Aimfox Reply    Gmail Reply Agent   Connection Accepted   Post Call
-   Agent — MCO      (active, Slack     Handler — MCO        Analysis
-                     approval)                               — MCO
+   Agent — MCO    (Slack approval)     Handler — MCO        Analysis
          │                │                   │                 │
          └────────────────┴───────────────────┴─────────────────┘
                                    │
                                    ▼
                     ┌──────────────────────────────┐
                     │  MCO Write Conversation Event │ ◄── All channels write here
-                    │  (Supabase + Monday + Notion) │
+                    │     (Supabase + Notion)       │
                     └──────────────────────────────┘
                                    │
                          trigger_cross_channel?
                                    │ YES
                                    ▼
                          follow_up_queue (Supabase)
-                          ┌────────┴────────┐
-                          │                 │
-                     target=email      target=voice
-                          │                 │
-                          ▼                 ▼
-                    FollowUp Queue    Flowtics AI
-                    Dispatcher        Call Agent
-                    (every 15 min)    (every 4 hrs)
-                          │
-                          ▼
-                    Centralized
-                    Follow-Up
-                    Coordinator
-                    ┌────┴────┐
-                    │         │
-                  Email   LinkedIn
-                  (Gmail)  (Aimfox)
+                    ┌──────────────┴──────────────┐
+                    │                             │
+               target=email                  target=voice
+               target=linkedin                    │
+                    │                             ▼
+                    ▼                       Flowtics AI
+              FollowUp Queue                Call Agent
+              Dispatcher                   (every 4 hrs)
+              (every 15 min)
                     │
                     ▼
-              Lead replies to email
+              Centralized
+              Follow-Up Coordinator
+         ┌──────────┴───────────┐
+         │                      │
+       Email              LinkedIn
+       (Gmail)         Scenario A: reply to existing convo
+                       Scenario B: campaign enroll → send direct
                     │
-                    ▼
-            Gmail Reply Agent
-            (Slack approval → send)
+                    ▼ (Queue Next Follow-Up? — up to 2 per channel)
+              next queue row inserted if < 2 sent
 ```
 
-**MCO Fetch Context** is called by:
-- Centralized Coordinator (before generating follow-up messages)
-- Connection Accepted Handler (before generating opening message)
-- Gmail Reply Agent (before generating email reply)
-- Flowtics Call Agent (before summarising context for voice agent)
+**MCO Fetch Context** called by: Coordinator, Connection Accepted Handler, Gmail Reply Agent, Flowtics Call Agent
 
-**MCO Write Event** is called by:
-- Aimfox Reply Agent (Write Returning + Write First Interested)
-- Gmail Reply Agent (Write Inbound + Write Outbound)
-- Connection Accepted Handler (Log to Supabase)
-- Centralized Coordinator (Log to Supabase after send)
-- Post Call Analysis (after call ends)
+**MCO Write Event** called by: Aimfox Reply Agent, Gmail Reply Agent, Connection Accepted Handler, Coordinator, Post Call Analysis
 
 ---
 
-## 7. Current System Status
+## 8. Current System Status
 
-| Workflow | Status | Trigger |
-|----------|--------|---------|
-| MCO - Write Conversation Event | ✅ ACTIVE | Webhook (called by all agents) |
-| MCO - Fetch Cross-Channel Context | ✅ ACTIVE | Webhook (called by all agents) |
-| MCO - FollowUp Queue Dispatcher | ✅ ACTIVE | Cron every 15 min |
-| MCO - Centralized Follow-Up Coordinator | ✅ ACTIVE | Webhook (called by Dispatcher) |
-| MCO - Aimfox Connection Accepted Handler | ✅ ACTIVE | Aimfox webhook |
-| Aimfox Nextus AI Reply Agent — MCO | ✅ ACTIVE | Aimfox webhook |
-| MCO - Gmail Reply Agent | ✅ ACTIVE | Gmail trigger |
-| Flowtics AI Call Agent - MCO | ✅ ACTIVE | Cron every 4 hours |
-| Post Call Analysis - MCO | ✅ ACTIVE | Retell post-call webhook |
-| Aimfox Data Fetching - MCO | ✅ ACTIVE | Aimfox webhook |
-| MCO - Aimfox Responded | ✅ ACTIVE | Aimfox webhook |
+| Workflow | Status | Nodes | Trigger |
+|----------|--------|-------|---------|
+| MCO - Write Conversation Event | ACTIVE | 21 | Webhook |
+| MCO - Fetch Cross-Channel Context | ACTIVE | 5 | Webhook |
+| MCO - FollowUp Queue Dispatcher | ACTIVE | 9 | Cron every 15 min |
+| MCO - Centralized Follow-Up Coordinator | ACTIVE | 24 | Webhook (Dispatcher) |
+| MCO - Aimfox Connection Accepted Handler | ACTIVE | 7 | Aimfox `accepted` webhook |
+| Aimfox Nextus AI Reply Agent — MCO | ACTIVE | 37 | Aimfox webhook |
+| MCO - Gmail Reply Agent | ACTIVE | 18 | Gmail trigger |
+| Flowtics AI Call Agent - MCO | ACTIVE | 12 | Cron every 4 hours |
+| Post Call Analysis - MCO | ACTIVE | 4 | Retell webhook |
+| Aimfox Data Fetching - MCO | ACTIVE | 4 | Aimfox webhook |
+| MCO - Aimfox Responded | ACTIVE | 2 | Aimfox webhook |
 
 ---
 
-## 8. Data Flow Per Lead Intent
+## 9. Data Flow Per Lead Intent
 
-**Lead is new, marks interested on LinkedIn:**
-1. Aimfox Reply Agent detects → AI replies on LinkedIn
-2. Write First Interested → writes seed + inbound (interested) + outbound
-3. follow_up_queue gets 2 rows: email (30 min) + voice (30 min)
+**New lead marks interested on LinkedIn:**
+1. Aimfox Reply Agent → AI replies on LinkedIn
+2. Write First Interested → seeds full thread + inbound (interested) + outbound
+3. follow_up_queue gets 2 rows: email (3 min) + voice (3 min)
 4. Dispatcher picks up email row → Coordinator sends personalised email via Gmail
 5. Flowtics picks up voice row (next 4-hour window) → places Retell call
-6. Retell calls lead → post-call webhook fires → call logged to Supabase
+6. Post Call Analysis logs call → Supabase updated
 7. Lead replies to email → Gmail Agent → Slack approval → reply sent + logged
+8. Any reply on any channel → pending follow-ups for that channel rescheduled +3 min
+9. After 2 sent follow-ups per channel → no more queued for that channel
 
-**Lead is returning (already in Supabase):**
+**Returning lead:**
 1. Any new reply on any channel → Write Returning (or respective channel handler)
-2. Context is fetched before every reply
+2. Context is fetched before every reply — full cross-channel history always used
 3. No cross-channel trigger unless explicitly set
 
 ---
 
-## 9. Known Gaps and Pending Items
+## 10. Known Gaps and Pending Items
 
 | Item | Detail |
 |------|--------|
-| **Stale queue rows** | 2 pending rows from May 4 test (`mco-test-lead@example.com`). Should be cleared: `DELETE FROM follow_up_queue WHERE created_at < '2026-05-10' AND status = 'pending'` |
-| **phone_e164 for LinkedIn leads** | LinkedIn leads arrive with no phone number. Voice follow-ups are queued but skipped by the phone guard until a phone is provided. Needs enrichment via Clay or manual update |
-| **LinkedIn follow-up delay** | When a lead is interested on LinkedIn, the LinkedIn channel is not yet in target_channels. Plan: add `linkedin` with a 5–7 day scheduled_for delay to re-engage if no reply. Not yet implemented — delay duration TBC |
-| **Retell webhook test** | Post-call webhook is registered in Retell. Hit "Test" in Retell dashboard to confirm n8n receives and processes correctly |
-| **Gmail Disapprove path** | If Slack approval is denied, the workflow stops silently with no log. A future improvement would write a `disapproved` note to Supabase |
-| **phone_map empty** | No real voice traffic yet. Will populate automatically once real Retell calls begin and leads have phone numbers |
+| **LinkedIn not in target_channels** | `target_channels` currently `['email', 'voice']` in Write First Interested node. LinkedIn follow-up not yet activated — Scenario C (campaign enroll) fires only when Coordinator explicitly receives a linkedin queue row. To activate: add `'linkedin'` to target_channels and decide delay relative to email/voice |
+| **Sequential channel logic** | All channels fire independently at the same time. Desired: email first → LinkedIn second → voice third. Not yet implemented |
+| **phone_e164 for LinkedIn leads** | LinkedIn leads have no phone number. Voice follow-ups queued but skipped by phone guard. Needs Clay enrichment or manual population |
+| **Aimfox MCP OAuth** | Added to settings.json. Requires OAuth login on first use — restart session and run `/mcp` to authenticate |
+| **Retell webhook test** | Hit "Test" in Retell dashboard to confirm Post Call Analysis receives and processes correctly |
+| **Gmail Disapprove path** | If Slack approval denied, workflow stops silently with no log. Could write `disapproved` note to Supabase |
+| **Production delay** | All follow-up delays currently 3 min for testing. Change `3*60*1000` → `30*60*1000` in `Build Queue Rows` (Write Event) and `Queue Next Follow-Up?` (Coordinator) before going live |
+| **Stale queue rows** | 2 stale test rows in follow_up_queue (mco-test-lead@example.com, May 4). Clear with: `DELETE FROM follow_up_queue WHERE lead_email LIKE '%test%' AND status = 'pending'` |
+| **Instantly AI integration (planned)** | When a lead shows interest in Instantly AI cold email sequence, Instantly AI CCs the Flowtics.ai Gmail address. Gmail Reply Agent takes over the thread (has full prior context via CC). MCO follow-up queue activates from there. Need to ensure Instantly AI stops monitoring thread after CC handover. Requires a database of interested lead emails to correctly identify the client vs Instantly AI sender |
