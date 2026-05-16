@@ -1,5 +1,11 @@
 {
+  "updatedAt": "2026-05-13T19:29:30.611Z",
+  "createdAt": "2026-05-12T19:11:25.261Z",
+  "id": "WTbIAJCZGtppAT91",
   "name": "MCO - Aimfox Connection Accepted Handler",
+  "description": null,
+  "active": false,
+  "isArchived": false,
   "nodes": [
     {
       "parameters": {
@@ -8,32 +14,31 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "accepted-webhook",
+      "id": "421e76fe-a0af-48b8-a8a9-ee346f219e9c",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        200,
-        400
+        -1104,
+        144
       ],
       "webhookId": "mco-aimfox-accepted"
     },
     {
       "parameters": {
-        "jsCode": "const SUPABASE_URL = 'https://hkqssbomrcbtfbdowtgj.supabase.co';\nconst SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI';\nconst AIMFOX_TOKEN = 'Bearer 8e65df8c-3fe2-4ecf-bf05-8261ea85464b';\nconst FETCH_CONTEXT_URL = 'https://nextus.app.n8n.cloud/webhook/mco-fetch-context';\nconst WRITE_EVENT_URL = 'https://nextus.app.n8n.cloud/webhook/mco-write-event';\n\nconst body = $input.first().json.body || $input.first().json;\n\n// Aimfox accepted event payload\nconst account_id = body.account_id || body.accountId || null;\nconst lead = body.lead || {};\nconst lead_id = lead.id || body.lead_id || null;\nconst lead_urn = lead.urn || body.lead_urn || null;\nconst lead_name = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'there';\nconst linkedin_profile_url = lead.profile_url || lead.linkedin_url || null;\n\nif (!account_id) throw new Error('No account_id in Aimfox accepted payload');\nif (!lead_id && !lead_urn) throw new Error('No lead_id or lead_urn in payload');\n\nreturn [{ json: {\n  SUPABASE_URL, SUPABASE_KEY, AIMFOX_TOKEN,\n  FETCH_CONTEXT_URL, WRITE_EVENT_URL,\n  account_id: String(account_id),\n  lead_id: String(lead_id || ''),\n  lead_urn: lead_urn || '',\n  lead_name,\n  linkedin_profile_url\n}}];"
+        "jsCode": "const SUPABASE_URL = 'https://hkqssbomrcbtfbdowtgj.supabase.co';\nconst SUPABASE_KEY = '{{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}';\nconst AIMFOX_TOKEN = 'Bearer 8e65df8c-3fe2-4ecf-bf05-8261ea85464b';\nconst FETCH_CONTEXT_URL = 'https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-fetch-context';\nconst WRITE_EVENT_URL = 'https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-write-event';\n\nconst body = $input.first().json.body || $input.first().json;\n\n// Aimfox accepted event payload\nconst account_id = body.account_id || body.accountId || null;\nconst lead = body.lead || {};\nconst lead_id = lead.id || body.lead_id || null;\nconst lead_urn = lead.urn || body.lead_urn || null;\nconst lead_name = [lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'there';\nconst linkedin_profile_url = lead.profile_url || lead.linkedin_url || null;\n\nif (!account_id) throw new Error('No account_id in Aimfox accepted payload');\nif (!lead_id && !lead_urn) throw new Error('No lead_id or lead_urn in payload');\n\nreturn [{ json: {\n  SUPABASE_URL, SUPABASE_KEY, AIMFOX_TOKEN,\n  FETCH_CONTEXT_URL, WRITE_EVENT_URL,\n  account_id: String(account_id),\n  lead_id: String(lead_id || ''),\n  lead_urn: lead_urn || '',\n  lead_name,\n  linkedin_profile_url\n}}];"
       },
-      "id": "accepted-extract",
+      "id": "174a13c6-f3f6-44ee-878a-d34d5f3bae5b",
       "name": "Extract Fields",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        420,
-        400
+        -880,
+        144
       ]
     },
     {
       "parameters": {
-        "method": "GET",
         "url": "={{ 'https://api.aimfox.com/api/v2/accounts/' + $json.account_id + '/leads/' + $json.lead_urn + '/custom-variables' }}",
         "sendHeaders": true,
         "headerParameters": {
@@ -56,26 +61,26 @@
           }
         }
       },
-      "id": "accepted-get-vars",
+      "id": "8c841028-c5c9-4075-a2b2-25745c7d6416",
       "name": "Get Lead Custom Variables",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        640,
-        400
+        -656,
+        144
       ]
     },
     {
       "parameters": {
         "jsCode": "const extracted = $('Extract Fields').first().json;\nconst varsResp = $input.first().json;\n\n// Custom variables may be nested differently depending on Aimfox response shape\nconst vars = varsResp.custom_variables || varsResp.variables || varsResp || {};\nconst lead_email = vars.LEAD_EMAIL || vars.lead_email || null;\n\nreturn [{ json: {\n  ...extracted,\n  lead_email,\n  has_email: !!lead_email\n}}];"
       },
-      "id": "accepted-extract-email",
+      "id": "e7f77f27-a7d0-4729-8eab-3089ae6491f8",
       "name": "Extract LEAD_EMAIL",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        860,
-        400
+        -448,
+        144
       ]
     },
     {
@@ -97,26 +102,26 @@
         },
         "options": {}
       },
-      "id": "accepted-has-email",
+      "id": "441b5e76-b6e5-40af-9238-fd647546cebf",
       "name": "Has Email?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1080,
-        400
+        -224,
+        144
       ]
     },
     {
       "parameters": {
-        "jsCode": "const d = $input.first().json;\nconsole.log('Accepted event skipped \u2014 no LEAD_EMAIL in custom variables. lead_id:', d.lead_id);\nreturn [{ json: { skipped: true, reason: 'No LEAD_EMAIL in Aimfox custom variables', lead_id: d.lead_id } }];"
+        "jsCode": "const d = $input.first().json;\nconsole.log('Accepted event skipped — no LEAD_EMAIL in custom variables. lead_id:', d.lead_id);\nreturn [{ json: { skipped: true, reason: 'No LEAD_EMAIL in Aimfox custom variables', lead_id: d.lead_id } }];"
       },
-      "id": "accepted-skip",
-      "name": "Skip \u2014 No Email",
+      "id": "30ad8d9f-fa7d-4264-ae81-ca2125fb165e",
+      "name": "Skip — No Email",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1300,
-        560
+        0,
+        304
       ]
     },
     {
@@ -127,13 +132,13 @@
           "responseCode": 200
         }
       },
-      "id": "accepted-return-skip",
+      "id": "081b1677-369a-4e08-a48e-ee84aac3b08b",
       "name": "Return OK (Skipped)",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        1520,
-        560
+        224,
+        304
       ]
     },
     {
@@ -160,76 +165,67 @@
           }
         }
       },
-      "id": "accepted-fetch-ctx",
+      "id": "c99e4025-9d25-4057-ac19-b9117acd3632",
       "name": "Fetch Context",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1300,
-        260
+        0,
+        0
       ]
     },
     {
       "parameters": {
         "jsCode": "const extracted = $('Extract LEAD_EMAIL').first().json;\nconst ctx = $input.first().json;\nconst lead = ctx.lead || {};\nreturn [{ json: {\n  ...extracted,\n  context_block: ctx.context_block || '(No prior conversation history.)',\n  overall_intent: ctx.overall_intent || 'unknown',\n  lead_name: lead.full_name || extracted.lead_name,\n  lead_company: lead.company || ''\n}}];"
       },
-      "id": "accepted-merge-ctx",
+      "id": "4a41378e-accd-43c1-a025-f1955040a2f7",
       "name": "Merge Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1520,
-        260
+        224,
+        0
       ]
     },
     {
       "parameters": {
         "model": "claude-sonnet-4-6",
-        "options": {
-          "systemPrompt": "You are a senior sales development representative for Nextus AI. A lead has just accepted your LinkedIn connection request. Write a warm, genuine first LinkedIn message to open the conversation.\n\nRules:\n- Maximum 80 words \u2014 LinkedIn messages must be brief\n- Reference the context of how you reached out (email, prior interaction) to show continuity\n- Be conversational, not salesy \u2014 this is the start of a dialogue\n- No greeting or sign-off \u2014 just the message body\n- No bullet points, no formatting, no emojis\n- Use the lead's real name, never placeholders\n- Output ONLY the message text"
-        }
+        "options": {}
       },
-      "id": "accepted-ai-model",
+      "id": "ee96187b-2b81-497e-858e-9a12b73ccb38",
       "name": "LinkedIn: Claude Model",
       "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
       "typeVersion": 1.3,
       "position": [
-        1740,
-        440
-      ],
-      "credentials": {
-        "anthropicApi": {
-          "id": "tFYLbQt9S6IzWYNd",
-          "name": "Anthropic account"
-        }
-      }
+        448,
+        192
+      ]
     },
     {
       "parameters": {
         "promptType": "define",
-        "text": "={{ 'Write a LinkedIn message to ' + $json.lead_name + ($json.lead_company ? ' at ' + $json.lead_company : '') + ' who just accepted our connection request.\\n\\nOverall intent: ' + $json.overall_intent + '\\n\\nContext (prior interactions across all channels):\\n' + $json.context_block }}",
-        "options": {}
+        "text": "={{ 'Write a LinkedIn message to ' + $json.lead_name + ($json.lead_company ? ' at ' + $json.lead_company : '') + ' who just accepted our connection request.\\n\\nOverall intent: ' + $json.overall_intent + '\\n\\nContext (prior interactions across all channels):\\n' + $json.context_block }}"
       },
-      "id": "accepted-generate",
+      "id": "8d548887-9d94-4447-b975-8b0e6b4d7532",
       "name": "Generate Message",
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.4,
       "position": [
-        1740,
-        260
+        448,
+        0
       ]
     },
     {
       "parameters": {
         "jsCode": "const ctx = $('Merge Context').first().json;\nconst aiOutput = $input.first().json;\nconst message = (aiOutput.text || aiOutput.output || '').trim();\nif (!message) throw new Error('AI returned empty message');\nreturn [{ json: { ...ctx, generated_message: message } }];"
       },
-      "id": "accepted-extract-msg",
+      "id": "f6529ecb-aecd-4b2e-8158-7e7c6cfc4a31",
       "name": "Extract Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1960,
-        260
+        672,
+        0
       ]
     },
     {
@@ -260,13 +256,13 @@
           }
         }
       },
-      "id": "accepted-send",
+      "id": "85968d9d-ba8e-45ae-856e-ff299838cb70",
       "name": "Send via Start Conversation",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2180,
-        260
+        880,
+        0
       ]
     },
     {
@@ -293,13 +289,13 @@
           }
         }
       },
-      "id": "accepted-log",
+      "id": "24c77801-7ea5-4bab-80bc-3471d0f19f9f",
       "name": "Log to Supabase",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2400,
-        260
+        1104,
+        0
       ]
     },
     {
@@ -310,13 +306,13 @@
           "responseCode": 200
         }
       },
-      "id": "accepted-return-ok",
+      "id": "18cb097f-0573-4221-88c1-a42eee8f6989",
       "name": "Return OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        2620,
-        260
+        1328,
+        0
       ]
     }
   ],
@@ -376,14 +372,14 @@
         ],
         [
           {
-            "node": "Skip \u2014 No Email",
+            "node": "Skip — No Email",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Skip \u2014 No Email": {
+    "Skip — No Email": {
       "main": [
         [
           {
@@ -474,8 +470,63 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "saveManualExecutions": true,
+    "binaryMode": "separate",
+    "availableInMCP": false,
     "callerPolicy": "workflowsFromSameOwner"
   },
-  "staticData": null
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "7616c971-c043-4f26-92b3-57fe1ae9a45d",
+  "activeVersionId": null,
+  "versionCounter": 3,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-05-12T19:11:25.261Z",
+      "createdAt": "2026-05-12T19:11:25.261Z",
+      "role": "workflow:owner",
+      "workflowId": "WTbIAJCZGtppAT91",
+      "projectId": "gT4zNzvFuk641tgz",
+      "project": {
+        "updatedAt": "2026-05-12T14:23:45.440Z",
+        "createdAt": "2026-05-12T11:56:55.020Z",
+        "id": "gT4zNzvFuk641tgz",
+        "name": "Flowtics AI <team@flowticsai.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "82beb348-efd1-4022-9d88-42d9caced284",
+        "projectRelations": [
+          {
+            "updatedAt": "2026-05-12T11:56:55.020Z",
+            "createdAt": "2026-05-12T11:56:55.020Z",
+            "userId": "82beb348-efd1-4022-9d88-42d9caced284",
+            "projectId": "gT4zNzvFuk641tgz",
+            "user": {
+              "updatedAt": "2026-05-16T08:39:07.427Z",
+              "createdAt": "2026-05-12T11:56:54.527Z",
+              "id": "82beb348-efd1-4022-9d88-42d9caced284",
+              "email": "team@flowticsai.com",
+              "firstName": "Flowtics",
+              "lastName": "AI",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "xE8mFF8HxPaSXNmi",
+                "userActivatedAt": 1778661186636
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-05-16",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
 }

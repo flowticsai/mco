@@ -2,6 +2,16 @@
 **Date:** 2026-05-12  
 **Auditor:** Claude (automated audit via n8n API + Supabase REST)
 
+> **2026-05-16 addendum:** Several things have changed since this audit:
+>
+> 1. **Notion CRM live.** A new `MCO CRM` Notion workspace was created and `MCO - Write Conversation Event` now dual-writes to Notion (6 new nodes between the Monday branch and the `Cross-Channel?` gate). Every channel agent that funnels through `/mco-write-event` reaches Notion automatically. Full reference: [docs/Notion_CRM.md](docs/Notion_CRM.md).
+> 2. **Workflow activation drifted from this audit.** As of 2026-05-16: Write Event = ON, Fetch Context = ON, Flowtics outbound = ON; all others (Coordinator, Dispatcher, Aimfox Reply Agent, Gmail Reply Agent, Connection Accepted) currently **OFF**. Re-activate when ready to resume the loop.
+> 3. **`Flowtics AI Outbound agent-MCO` is built** (this audit said the Retell handler was pending). It exists, is active, runs the voice channel via Retell. Not yet documented in workflows/.
+> 4. **Two pre-existing bugs were found** while building the Notion dual-write but **deliberately not fixed** because they only affect Monday and Monday is going away:
+>    - `Merge Lead Data` drops the canonical `overall_intent` from the Supabase RPC (array-vs-object mismatch). Effect: the webhook response and Monday updates report event-level intent instead of canonical lead intent.
+>    - `Create Monday Item` creates a new Monday item per event for the same lead instead of deduping by email.
+> 5. **Monday removal is a single-script operation.** `python tools/kill_monday.py --apply` removes the 5 Monday nodes from Write Event and the 3 standalone `mondayCom` nodes from Aimfox Reply Agent, with auto-backup.
+
 ---
 
 ## What MCO Is

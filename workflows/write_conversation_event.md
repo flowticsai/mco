@@ -1,7 +1,9 @@
 # Write Conversation Event
 
+> **2026-05-16:** This workflow now **dual-writes to Notion** in addition to Supabase and Monday. See [docs/Notion_CRM.md](../docs/Notion_CRM.md) for the Notion side. Monday is legacy.
+
 ## Objective
-Record every lead interaction across all channels (email, LinkedIn, voice, SMS) into the unified Supabase store and keep Monday.com in sync. This sub-workflow is the single write path — all channel workflows call this instead of writing to storage themselves.
+Record every lead interaction across all channels (email, LinkedIn, voice, SMS) into the unified Supabase store and keep the **Notion CRM** (and Monday, during transition) in sync. This sub-workflow is the single write path — all channel workflows call this instead of writing to storage themselves.
 
 ## When to Use
 Call this immediately after any of the following:
@@ -65,9 +67,15 @@ All fields sent as JSON body to the workflow webhook or via Execute Workflow nod
    - Emojis: 📧 email · 💼 linkedin · 📞 voice · 💬 sms
 9. **Update Monday Item Columns** — Monday.com column values mutation
    - Set: overall_intent, last_active_channel, phone_e164 (if present)
-10. **Write FollowUpQueue** — Supabase INSERT (only if trigger_cross_channel = true)
+10. **Notion: Query Lead** — HTTP POST `databases/{NOTION_LEADS_DB_ID}/query`, filter Email=
+11. **Notion: Extract Lead ID** — Code node. Returns `{found, notion_lead_id, update_props}` where `update_props` is COALESCE-built (always updates Overall intent + Last channel + Last activity; fills Company/Phone/LinkedIn URL/URN/Aimfox campaign/Sender inbox only if currently empty on Notion side). Intent source: `$('Upsert Lead').item.json.overall_intent` (canonical, post-promotion).
+12. **IF: Notion Lead Found?** — branches:
+    - **YES** → Notion: Update Lead (PATCH `pages/{id}` with `update_props`)
+    - **NO**  → Notion: Create Lead (POST `pages` with full record)
+13. **Notion: Create Conversation** — POST `pages`, two-way relation to Lead, title = `{Lead Name} · {channel} {direction} · {YYYY-MM-DD HH:MM}`, full content in page body
+14. **Write FollowUpQueue** — Supabase INSERT (only if trigger_cross_channel = true)
     - For each channel in target_channels: insert row with status=pending, scheduled_for=NOW()+30min
-11. **Return Response** — 200 OK
+15. **Return Response** — 200 OK
     - `{ status: "ok", monday_item_id: "...", lead_created: true/false, overall_intent: "..." }`
 
 ## Outputs

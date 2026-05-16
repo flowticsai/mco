@@ -1,5 +1,11 @@
 {
+  "updatedAt": "2026-05-16T11:59:37.316Z",
+  "createdAt": "2026-05-12T19:13:29.430Z",
+  "id": "5qOo5YzrPnW8Uj9g",
   "name": "MCO - Write Conversation Event",
+  "description": null,
+  "active": true,
+  "isArchived": false,
   "nodes": [
     {
       "parameters": {
@@ -8,22 +14,28 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "node-webhook",
+      "id": "ade8c3c8-7baa-4df3-b7a0-bc1ca4d387a0",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 300],
+      "position": [
+        -1536,
+        144
+      ],
       "webhookId": "mco-write-event"
     },
     {
       "parameters": {
-        "jsCode": "// Config\nconst CFG = {\n  SUPABASE_URL: 'https://hkqssbomrcbtfbdowtgj.supabase.co',\n  SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI',\n  MONDAY_TOKEN: 'eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjQxOTA2OTYxOSwiYWFpIjoxMSwidWlkIjo2NDI3NTY2NiwiaWFkIjoiMjAyNC0xMC0wM1QxNTowODowOC4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6MjMzNzIwNDIsInJnbiI6InVzZTEifQ.MoC1jx8muY24purLSEUZWQIUw8xcOK8jZ4JVqZTL0MA',\n  MONDAY_BOARD_ID: 18399476470\n};\n\nconst body = $input.first().json.body || $input.first().json;\n\nconst required = ['event_id','lead_email','channel','direction','content','timestamp'];\nconst missing = required.filter(f => !body[f]);\nif (missing.length > 0) throw new Error('Missing fields: ' + missing.join(', '));\n\nconst validChannels = ['email','linkedin','voice','sms'];\nconst validDirections = ['inbound','outbound'];\nconst validIntents = ['unknown','no_action','not_interested','referral','already_have_contract','interested','booking'];\nconst validContentTypes = ['message','transcript','summary'];\n\nif (!validChannels.includes(body.channel)) throw new Error('Invalid channel: ' + body.channel);\nif (!validDirections.includes(body.direction)) throw new Error('Invalid direction: ' + body.direction);\n\nlet phone = body.phone_e164 || null;\nif (phone && !/^\\+[1-9]\\d{7,14}$/.test(phone)) phone = null;\n\nreturn [{ json: {\n  ...CFG,\n  event_id: body.event_id.toLowerCase(),\n  lead_email: body.lead_email.toLowerCase().trim(),\n  timestamp: body.timestamp,\n  channel: body.channel,\n  direction: body.direction,\n  content: body.content,\n  content_type: validContentTypes.includes(body.content_type) ? body.content_type : 'message',\n  sender_name: body.sender_name || '',\n  intent: validIntents.includes(body.intent) ? body.intent : 'unknown',\n  metadata: body.metadata || {},\n  workflow_execution_id: body.workflow_execution_id || '',\n  phone_e164: phone,\n  full_name: body.full_name || '',\n  company: body.company || '',\n  linkedin_urn: body.linkedin_urn || null,\n  aimfox_campaign: body.aimfox_campaign || null,\n  email_sender_inbox: body.email_sender_inbox || null,\n  trigger_cross_channel: body.trigger_cross_channel === true,\n  trigger_cross_channel_str: body.trigger_cross_channel === true ? 'yes' : 'no',\n  target_channels: Array.isArray(body.target_channels) ? body.target_channels : [],\n  follow_up_context: body.follow_up_context || ''\n}}];"
+        "jsCode": "// Config\nconst CFG = {\n  SUPABASE_URL: 'https://hkqssbomrcbtfbdowtgj.supabase.co',\n  SUPABASE_KEY: '{{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}',\n  MONDAY_TOKEN: '{{REPLACE_WITH_MONDAY_TOKEN_OBSOLETE}}',\n  MONDAY_BOARD_ID: 18399476470\n};\n\nconst body = $input.first().json.body || $input.first().json;\n\nconst required = ['event_id','lead_email','channel','direction','content','timestamp'];\nconst missing = required.filter(f => !body[f]);\nif (missing.length > 0) throw new Error('Missing fields: ' + missing.join(', '));\n\nconst validChannels = ['email','linkedin','voice','sms'];\nconst validDirections = ['inbound','outbound'];\nconst validIntents = ['unknown','no_action','not_interested','referral','already_have_contract','interested','booking'];\nconst validContentTypes = ['message','transcript','summary'];\n\nif (!validChannels.includes(body.channel)) throw new Error('Invalid channel: ' + body.channel);\nif (!validDirections.includes(body.direction)) throw new Error('Invalid direction: ' + body.direction);\n\nlet phone = body.phone_e164 || null;\nif (phone && !/^\\+[1-9]\\d{7,14}$/.test(phone)) phone = null;\n\nreturn [{ json: {\n  ...CFG,\n  event_id: body.event_id.toLowerCase(),\n  lead_email: body.lead_email.toLowerCase().trim(),\n  timestamp: body.timestamp,\n  channel: body.channel,\n  direction: body.direction,\n  content: body.content,\n  content_type: validContentTypes.includes(body.content_type) ? body.content_type : 'message',\n  sender_name: body.sender_name || '',\n  intent: validIntents.includes(body.intent) ? body.intent : 'unknown',\n  metadata: body.metadata || {},\n  workflow_execution_id: body.workflow_execution_id || '',\n  phone_e164: phone,\n  full_name: body.full_name || '',\n  company: body.company || '',\n  linkedin_urn: body.linkedin_urn || null,\n  linkedin_profile_url: body.linkedin_profile_url || null,\n  aimfox_campaign: body.aimfox_campaign || null,\n  email_sender_inbox: body.email_sender_inbox || null,\n  trigger_cross_channel: body.trigger_cross_channel === true,\n  trigger_cross_channel_str: body.trigger_cross_channel === true ? 'yes' : 'no',\n  target_channels: Array.isArray(body.target_channels) ? body.target_channels : [],\n  follow_up_context: body.follow_up_context || ''\n}}];"
       },
-      "id": "node-setup",
+      "id": "316d4b49-b2dd-461b-b336-c1f2189985cb",
       "name": "Setup & Validate",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 300]
+      "position": [
+        -1328,
+        144
+      ]
     },
     {
       "parameters": {
@@ -32,10 +44,22 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "apikey", "value": "={{ $json.SUPABASE_KEY }}"},
-            {"name": "Authorization", "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "Accept", "value": "application/json"}
+            {
+              "name": "apikey",
+              "value": "={{ $json.SUPABASE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -43,25 +67,33 @@
         "jsonBody": "={{ JSON.stringify({\n  p_lead_email: $json.lead_email,\n  p_full_name: $json.full_name || null,\n  p_company: $json.company || null,\n  p_linkedin_urn: $json.linkedin_urn || null,\n  p_phone_e164: $json.phone_e164 || null,\n  p_channel: $json.channel,\n  p_new_intent: $json.intent,\n  p_aimfox_campaign: $json.aimfox_campaign || null,\n  p_email_sender_inbox: $json.email_sender_inbox || null\n}) }}",
         "options": {
           "response": {
-            "response": {"neverError": true}
+            "response": {
+              "neverError": true
+            }
           }
         }
       },
-      "id": "node-upsert-lead",
+      "id": "233fd04f-2841-41e3-aac8-b7a732335377",
       "name": "Upsert Lead",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [640, 300]
+      "position": [
+        -1104,
+        144
+      ]
     },
     {
       "parameters": {
         "jsCode": "// Merge RPC result back with original setup data\nconst setup = $('Setup & Validate').first().json;\nconst rpcResp = $input.first().json;\nconst lead = Array.isArray(rpcResp) && rpcResp.length > 0 ? rpcResp[0] : {};\nreturn [{ json: {\n  ...setup,\n  monday_item_id: lead.monday_item_id || null,\n  overall_intent: lead.overall_intent || setup.intent\n}}];"
       },
-      "id": "node-merge-lead",
+      "id": "35882963-0c24-48c0-a878-daba8367bae5",
       "name": "Merge Lead Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [860, 300]
+      "position": [
+        -880,
+        144
+      ]
     },
     {
       "parameters": {
@@ -70,10 +102,22 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "apikey", "value": "={{ $json.SUPABASE_KEY }}"},
-            {"name": "Authorization", "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "Accept", "value": "application/json"}
+            {
+              "name": "apikey",
+              "value": "={{ $json.SUPABASE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Accept",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
@@ -81,67 +125,106 @@
         "jsonBody": "={{ JSON.stringify({\n  p_event_id: $json.event_id,\n  p_lead_email: $json.lead_email,\n  p_timestamp: $json.timestamp,\n  p_channel: $json.channel,\n  p_direction: $json.direction,\n  p_content: $json.content,\n  p_content_type: $json.content_type,\n  p_sender_name: $json.sender_name,\n  p_intent: $json.intent,\n  p_metadata: $json.metadata,\n  p_workflow_execution_id: $json.workflow_execution_id\n}) }}",
         "options": {
           "response": {
-            "response": {"neverError": true}
+            "response": {
+              "neverError": true
+            }
           }
         }
       },
-      "id": "node-insert-conv",
+      "id": "16d1b0bc-2441-4625-9191-6a7eef5e5fee",
       "name": "Insert Conversation",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1080, 300]
+      "position": [
+        -656,
+        144
+      ]
     },
     {
       "parameters": {
         "jsCode": "// RPC returns { was_new: bool, event_id: '...' }\n// Use 'yes'/'no' strings for was_inserted_str — n8n string comparisons are reliable\nconst setup = $('Merge Lead Data').first().json;\nconst rpcResp = $input.first().json;\nconst wasNew = rpcResp && rpcResp.was_new === true;\nreturn [{ json: { ...setup, was_inserted: wasNew, was_inserted_str: wasNew ? 'yes' : 'no', insert_resp: rpcResp } }];"
       },
-      "id": "node-check-insert",
+      "id": "dd8d07d7-153f-4e24-860a-d1d9532d8fcd",
       "name": "Check Insert Result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1300, 300]
+      "position": [
+        -448,
+        144
+      ]
     },
     {
       "parameters": {
         "conditions": {
           "options": {},
-          "conditions": [{"id": "c1", "leftValue": "={{ $json.was_inserted_str }}", "rightValue": "no", "operator": {"type": "string", "operation": "equals"}}],
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.was_inserted_str }}",
+              "rightValue": "no",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
       },
-      "id": "node-if-dup",
+      "id": "e43cc3ab-4407-4daa-8c14-5ad74470e5ea",
       "name": "Was Duplicate?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1520, 300]
+      "position": [
+        -224,
+        144
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ JSON.stringify({ status: 'already_written', event_id: $json.event_id }) }}",
-        "options": {"responseCode": 200}
+        "options": {
+          "responseCode": 200
+        }
       },
-      "id": "node-return-dup",
+      "id": "f95c16ea-35ba-4f12-a2b8-9560784d2a19",
       "name": "Return Already Written",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1740, 160]
+      "position": [
+        0,
+        0
+      ]
     },
     {
       "parameters": {
         "conditions": {
           "options": {},
-          "conditions": [{"id": "c2", "leftValue": "={{ $json.phone_e164 }}", "rightValue": "", "operator": {"type": "string", "operation": "notEmpty"}}],
+          "conditions": [
+            {
+              "id": "c2",
+              "leftValue": "={{ $json.phone_e164 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
       },
-      "id": "node-has-phone",
+      "id": "a6f66735-ef47-4456-b03f-ef398e9da4a0",
       "name": "Has Phone?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1740, 360]
+      "position": [
+        0,
+        208
+      ]
     },
     {
       "parameters": {
@@ -150,128 +233,84 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "apikey", "value": "={{ $json.SUPABASE_KEY }}"},
-            {"name": "Authorization", "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "Prefer", "value": "resolution=ignore-duplicates"}
+            {
+              "name": "apikey",
+              "value": "={{ $json.SUPABASE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=ignore-duplicates"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ phone_e164: $json.phone_e164, lead_email: $json.lead_email, source: $json.channel, confidence: 'medium' }) }}",
-        "options": {"response": {"response": {"neverError": true}}}
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
-      "id": "node-phone-map",
+      "id": "0ea33569-1e8a-44ae-8cdf-503b295930f8",
       "name": "Upsert PhoneMap",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1960, 220]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Build Monday.com update text\nconst d = $('Check Insert Result').first().json;\nconst icons = { email: '[EMAIL]', linkedin: '[LINKEDIN]', voice: '[VOICE]', sms: '[SMS]' };\nconst icon = icons[d.channel] || '[?]';\nconst dir = d.direction === 'inbound' ? 'Inbound from Lead' : 'Outbound to Lead';\nconst ts = new Date(d.timestamp).toISOString().replace('T',' ').slice(0,16) + ' UTC';\nconst content = (d.content||'').length > 500 ? d.content.slice(0,497)+'...' : d.content||'';\nconst sender = d.sender_name ? d.sender_name + (d.company ? ' (' + d.company + ')' : '') : '';\nconst text = [icon + ' ' + d.channel.toUpperCase() + ' | ' + dir + ' | ' + ts, sender, '---', content, 'Intent: ' + d.intent].filter(Boolean).join('\\n');\nreturn [{ json: { ...d, monday_update_text: text } }];"
-      },
-      "id": "node-format-monday",
-      "name": "Format Monday Update",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1960, 400]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.monday.com/v2",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {"name": "Authorization", "value": "={{ $json.MONDAY_TOKEN }}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "API-Version", "value": "2024-01"}
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ query: 'mutation { create_item(board_id: ' + $json.MONDAY_BOARD_ID + ', item_name: \"' + ($json.full_name || $json.lead_email).replace(/\"/g, '') + '\") { id } }' }) }}",
-        "options": {"response": {"response": {"neverError": true}}}
-      },
-      "id": "node-monday-create",
-      "name": "Create Monday Item",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2180, 400]
-    },
-    {
-      "parameters": {
-        "jsCode": "const d = $('Format Monday Update').first().json;\nconst mondayResp = $input.first().json;\nconst newItemId = mondayResp?.data?.create_item?.id || d.monday_item_id || null;\nreturn [{ json: { ...d, monday_item_id: newItemId } }];"
-      },
-      "id": "node-monday-id",
-      "name": "Extract Monday ID",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2400, 400]
+      "position": [
+        224,
+        64
+      ]
     },
     {
       "parameters": {
         "conditions": {
           "options": {},
-          "conditions": [{"id": "c3", "leftValue": "={{ $json.monday_item_id }}", "rightValue": "", "operator": {"type": "string", "operation": "notEmpty"}}],
+          "conditions": [
+            {
+              "id": "c4",
+              "leftValue": "={{ $('Setup & Validate').first().json.trigger_cross_channel_str }}",
+              "rightValue": "yes",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
           "combinator": "and"
         },
         "options": {}
       },
-      "id": "node-has-item",
-      "name": "Has Monday Item?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [2620, 400]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.monday.com/v2",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {"name": "Authorization", "value": "={{ $json.MONDAY_TOKEN }}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "API-Version", "value": "2024-01"}
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ query: 'mutation { create_update(item_id: ' + $json.monday_item_id + ', body: ' + JSON.stringify($json.monday_update_text) + ') { id } }' }) }}",
-        "options": {"response": {"response": {"neverError": true}}}
-      },
-      "id": "node-monday-update",
-      "name": "Post Monday Update",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2840, 280]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {},
-          "conditions": [{"id": "c4", "leftValue": "={{ $('Setup & Validate').first().json.trigger_cross_channel_str }}", "rightValue": "yes", "operator": {"type": "string", "operation": "equals"}}],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "node-cross",
+      "id": "6bbb9ded-c3be-4e69-b0a8-f7d97cdd519a",
       "name": "Cross-Channel?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [2840, 460]
+      "position": [
+        1104,
+        304
+      ]
     },
     {
       "parameters": {
         "jsCode": "const d = $('Extract Monday ID').first().json;\nconst scheduled = new Date(Date.now() + 30*60*1000).toISOString();\nreturn (d.target_channels || []).map(tc => ({ json: {\n  ...d,\n  queue_row: {\n    lead_email: d.lead_email,\n    trigger_channel: d.channel,\n    target_channel: tc,\n    trigger_event_id: d.event_id,\n    scheduled_for: scheduled,\n    status: 'pending',\n    follow_up_context: d.follow_up_context || 'Lead showed interest via ' + d.channel\n  }\n}}));"
       },
-      "id": "node-build-queue",
+      "id": "4a2d53b7-f80c-40a9-9b46-6f15c6c0749f",
       "name": "Build Queue Rows",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3060, 380]
+      "position": [
+        1328,
+        224
+      ]
     },
     {
       "parameters": {
@@ -280,79 +319,1397 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {"name": "apikey", "value": "={{ $json.SUPABASE_KEY }}"},
-            {"name": "Authorization", "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"},
-            {"name": "Content-Type", "value": "application/json"},
-            {"name": "Prefer", "value": "return=representation"}
+            {
+              "name": "apikey",
+              "value": "={{ $json.SUPABASE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.queue_row) }}",
-        "options": {"response": {"response": {"neverError": true}}}
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
       },
-      "id": "node-insert-queue",
+      "id": "49853288-f723-4231-bfc2-9c43e0aff35b",
       "name": "Insert FollowUpQueue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [3280, 380]
+      "position": [
+        1552,
+        224
+      ]
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify({ status: 'ok', event_id: $('Check Insert Result').first().json.event_id, lead_email: $('Check Insert Result').first().json.lead_email, monday_item_id: $('Extract Monday ID').first().json.monday_item_id || null, overall_intent: $('Check Insert Result').first().json.overall_intent }) }}",
-        "options": {"responseCode": 200}
+        "responseBody": "={{ JSON.stringify({ status: 'ok', event_id: $('Check Insert Result').first().json.event_id, lead_email: $('Check Insert Result').first().json.lead_email, overall_intent: $('Upsert Lead').item.json.overall_intent }) }}",
+        "options": {
+          "responseCode": 200
+        }
       },
-      "id": "node-return-ok",
+      "id": "387ff4f1-777b-4251-a8c2-ade0f8b2a947",
       "name": "Return OK",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [3500, 380]
+      "position": [
+        1760,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/362dc227-748f-8184-892a-c6f8f3151b07/query",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{REPLACE_WITH_NOTION_TOKEN}}"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  filter: { property: \"Email\", email: { equals: $('Setup & Validate').item.json.lead_email } },\n  page_size: 1\n}) }}"
+      },
+      "id": "f13ffb6d-d425-4c53-89c1-653fb61573b9",
+      "name": "Notion: Query Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -608,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Notion query response, compute COALESCE'd update_props.\nconst results = $input.first().json.results || [];\nconst setup = $('Setup & Validate').item.json;\nconst upsertIntent = ($('Upsert Lead').item.json.overall_intent) || setup.intent || 'unknown';\n\n// Always-update fields: intent (canonical), last channel, last activity.\nconst updateProps = {\n  \"Overall intent\": { select: { name: upsertIntent } },\n  \"Last channel\":   { select: { name: setup.channel } },\n  \"Last activity\":  { date:   { start: setup.timestamp } }\n};\n\nif (results.length > 0) {\n  const existing = results[0].properties || {};\n  const emptyRT    = (p) => !p || !Array.isArray(p.rich_text) || p.rich_text.length === 0;\n  const emptyEmail = (p) => !p || p.email === null || p.email === undefined;\n  const emptyPhone = (p) => !p || p.phone_number === null || p.phone_number === undefined;\n  const emptyUrl   = (p) => !p || p.url === null || p.url === undefined;\n\n  // COALESCE: only fill empty fields on the existing Notion lead.\n  if (setup.company && emptyRT(existing[\"Company\"]))\n    updateProps[\"Company\"] = { rich_text: [{ text: { content: setup.company } }] };\n  if (setup.phone_e164 && emptyPhone(existing[\"Phone\"]))\n    updateProps[\"Phone\"] = { phone_number: setup.phone_e164 };\n  if (setup.linkedin_profile_url && emptyUrl(existing[\"LinkedIn URL\"]))\n    updateProps[\"LinkedIn URL\"] = { url: setup.linkedin_profile_url };\n  if (setup.linkedin_urn && emptyRT(existing[\"LinkedIn URN\"]))\n    updateProps[\"LinkedIn URN\"] = { rich_text: [{ text: { content: setup.linkedin_urn } }] };\n  if (setup.aimfox_campaign && emptyRT(existing[\"Aimfox campaign\"]))\n    updateProps[\"Aimfox campaign\"] = { rich_text: [{ text: { content: setup.aimfox_campaign } }] };\n  if (setup.email_sender_inbox && emptyEmail(existing[\"Sender inbox\"]))\n    updateProps[\"Sender inbox\"] = { email: setup.email_sender_inbox };\n\n  return [{ json: {\n    found: true,\n    notion_lead_id: results[0].id,\n    update_props: updateProps,\n    ...setup\n  }}];\n}\n\nreturn [{ json: {\n  found: false,\n  notion_lead_id: null,\n  update_props: null,\n  ...setup\n}}];\n"
+      },
+      "id": "595ee545-d2b3-4dfe-8501-dd77d2af6b39",
+      "name": "Notion: Extract Lead ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -432,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {},
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.found }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "33fd6372-2723-4fda-a696-cdd94d9e3596",
+      "name": "IF: Notion Lead Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -256,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/pages/{{ $json.notion_lead_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{REPLACE_WITH_NOTION_TOKEN}}"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: $json.update_props }) }}"
+      },
+      "id": "6f0c564d-571d-413a-b853-a08c9bbb2baf",
+      "name": "Notion: Update Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -80,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{REPLACE_WITH_NOTION_TOKEN}}"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify((function(){\n  const s = $('Setup & Validate').item.json;\n  const props = {\n    \"Name\":           { title: [{ text: { content: s.full_name || s.lead_email } }] },\n    \"Email\":          { email: s.lead_email },\n    \"Overall intent\": { select: { name: s.intent || \"unknown\" } },\n    \"Last channel\":   { select: { name: s.channel } },\n    \"First channel\":  { select: { name: s.channel } },\n    \"Last activity\":  { date:   { start: s.timestamp } },\n    \"First seen\":     { date:   { start: s.timestamp } }\n  };\n  if (s.company)              props[\"Company\"]         = { rich_text: [{ text: { content: s.company } }] };\n  if (s.phone_e164)           props[\"Phone\"]           = { phone_number: s.phone_e164 };\n  if (s.linkedin_profile_url) props[\"LinkedIn URL\"]    = { url: s.linkedin_profile_url };\n  if (s.linkedin_urn)         props[\"LinkedIn URN\"]    = { rich_text: [{ text: { content: s.linkedin_urn } }] };\n  if (s.aimfox_campaign)      props[\"Aimfox campaign\"] = { rich_text: [{ text: { content: s.aimfox_campaign } }] };\n  if (s.email_sender_inbox)   props[\"Sender inbox\"]    = { email: s.email_sender_inbox };\n  return {\n    parent: { database_id: \"362dc227-748f-8184-892a-c6f8f3151b07\" },\n    properties: props\n  };\n})()) }}"
+      },
+      "id": "b8317c29-dc15-44de-afe2-c8bd544f9709",
+      "name": "Notion: Create Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -80,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{REPLACE_WITH_NOTION_TOKEN}}"
+            },
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify((function(){\n  const s = $('Setup & Validate').item.json;\n  const lead = $json;\n  const leadId = lead.id;\n  let leadName = null;\n  try {\n    const tArr = lead.properties && lead.properties.Name && lead.properties.Name.title;\n    if (Array.isArray(tArr) && tArr.length > 0) leadName = tArr[0].plain_text;\n  } catch (e) {}\n  if (!leadName) leadName = s.full_name || s.lead_email;\n  const tsShort = (s.timestamp || '').slice(0, 16).replace('T', ' ');\n  const title = `${leadName} \\u00b7 ${s.channel} ${s.direction} \\u00b7 ${tsShort}`;\n  const props = {\n    \"Event\":        { title: [{ text: { content: title } }] },\n    \"Lead\":         { relation: [{ id: leadId }] },\n    \"Channel\":      { select: { name: s.channel } },\n    \"Direction\":    { select: { name: s.direction } },\n    \"Timestamp\":    { date:   { start: s.timestamp } },\n    \"Intent\":       { select: { name: s.intent || \"unknown\" } },\n    \"Content\":      { rich_text: [{ text: { content: (s.content || \"\").slice(0, 1900) } }] },\n    \"Content type\": { select: { name: s.content_type || \"message\" } },\n    \"Event ID\":     { rich_text: [{ text: { content: s.event_id } }] }\n  };\n  if (s.sender_name)           props[\"Sender name\"]      = { rich_text: [{ text: { content: s.sender_name } }] };\n  if (s.workflow_execution_id) props[\"Workflow exec ID\"] = { rich_text: [{ text: { content: s.workflow_execution_id } }] };\n  const body = {\n    parent: { database_id: \"362dc227-748f-817b-b406-cf43be6f4822\" },\n    properties: props\n  };\n  if (s.content) {\n    body.children = [{\n      object: \"block\", type: \"paragraph\",\n      paragraph: { rich_text: [{ type: \"text\", text: { content: String(s.content).slice(0, 1900) } }] }\n    }];\n  }\n  return body;\n})()) }}"
+      },
+      "id": "0de3918c-9459-47ec-a5e7-0c05ecb00f73",
+      "name": "Notion: Create Conversation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        144,
+        464
+      ]
     }
   ],
   "connections": {
-    "Webhook": {"main": [[{"node": "Setup & Validate", "type": "main", "index": 0}]]},
-    "Setup & Validate": {"main": [[{"node": "Upsert Lead", "type": "main", "index": 0}]]},
-    "Upsert Lead": {"main": [[{"node": "Merge Lead Data", "type": "main", "index": 0}]]},
-    "Merge Lead Data": {"main": [[{"node": "Insert Conversation", "type": "main", "index": 0}]]},
-    "Insert Conversation": {"main": [[{"node": "Check Insert Result", "type": "main", "index": 0}]]},
-    "Check Insert Result": {"main": [[{"node": "Was Duplicate?", "type": "main", "index": 0}]]},
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Setup & Validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Setup & Validate": {
+      "main": [
+        [
+          {
+            "node": "Upsert Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Lead": {
+      "main": [
+        [
+          {
+            "node": "Merge Lead Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Lead Data": {
+      "main": [
+        [
+          {
+            "node": "Insert Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Conversation": {
+      "main": [
+        [
+          {
+            "node": "Check Insert Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Insert Result": {
+      "main": [
+        [
+          {
+            "node": "Was Duplicate?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Was Duplicate?": {
       "main": [
-        [{"node": "Return Already Written", "type": "main", "index": 0}],
-        [{"node": "Has Phone?", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Return Already Written",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Has Phone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Has Phone?": {
       "main": [
-        [{"node": "Upsert PhoneMap", "type": "main", "index": 0}],
-        [{"node": "Format Monday Update", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Upsert PhoneMap",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notion: Query Lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notion: Query Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Upsert PhoneMap": {"main": [[{"node": "Format Monday Update", "type": "main", "index": 0}]]},
-    "Format Monday Update": {"main": [[{"node": "Create Monday Item", "type": "main", "index": 0}]]},
-    "Create Monday Item": {"main": [[{"node": "Extract Monday ID", "type": "main", "index": 0}]]},
-    "Extract Monday ID": {"main": [[{"node": "Has Monday Item?", "type": "main", "index": 0}]]},
-    "Has Monday Item?": {
+    "Upsert PhoneMap": {
       "main": [
-        [{"node": "Post Monday Update", "type": "main", "index": 0}],
-        [{"node": "Cross-Channel?", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Notion: Query Lead",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notion: Query Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Post Monday Update": {"main": [[{"node": "Cross-Channel?", "type": "main", "index": 0}]]},
     "Cross-Channel?": {
       "main": [
-        [{"node": "Build Queue Rows", "type": "main", "index": 0}],
-        [{"node": "Return OK", "type": "main", "index": 0}]
+        [
+          {
+            "node": "Build Queue Rows",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Return OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
-    "Build Queue Rows": {"main": [[{"node": "Insert FollowUpQueue", "type": "main", "index": 0}]]},
-    "Insert FollowUpQueue": {"main": [[{"node": "Return OK", "type": "main", "index": 0}]]}
+    "Build Queue Rows": {
+      "main": [
+        [
+          {
+            "node": "Insert FollowUpQueue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert FollowUpQueue": {
+      "main": [
+        [
+          {
+            "node": "Return OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion: Query Lead": {
+      "main": [
+        [
+          {
+            "node": "Notion: Extract Lead ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion: Extract Lead ID": {
+      "main": [
+        [
+          {
+            "node": "IF: Notion Lead Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Notion Lead Found?": {
+      "main": [
+        [
+          {
+            "node": "Notion: Update Lead",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notion: Create Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion: Update Lead": {
+      "main": [
+        [
+          {
+            "node": "Notion: Create Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion: Create Lead": {
+      "main": [
+        [
+          {
+            "node": "Notion: Create Conversation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notion: Create Conversation": {
+      "main": [
+        [
+          {
+            "node": "Cross-Channel?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "settings": {
     "executionOrder": "v1",
-    "saveManualExecutions": true,
+    "binaryMode": "separate",
+    "availableInMCP": false,
     "callerPolicy": "workflowsFromSameOwner"
   },
-  "staticData": null
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "da0c7314-4765-4654-bd79-903dd829e558",
+  "activeVersionId": "da0c7314-4765-4654-bd79-903dd829e558",
+  "versionCounter": 41,
+  "triggerCount": 1,
+  "shared": [
+    {
+      "updatedAt": "2026-05-12T19:13:29.430Z",
+      "createdAt": "2026-05-12T19:13:29.430Z",
+      "role": "workflow:owner",
+      "workflowId": "5qOo5YzrPnW8Uj9g",
+      "projectId": "gT4zNzvFuk641tgz",
+      "project": {
+        "updatedAt": "2026-05-12T14:23:45.440Z",
+        "createdAt": "2026-05-12T11:56:55.020Z",
+        "id": "gT4zNzvFuk641tgz",
+        "name": "Flowtics AI <team@flowticsai.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "82beb348-efd1-4022-9d88-42d9caced284",
+        "projectRelations": [
+          {
+            "updatedAt": "2026-05-12T11:56:55.020Z",
+            "createdAt": "2026-05-12T11:56:55.020Z",
+            "userId": "82beb348-efd1-4022-9d88-42d9caced284",
+            "projectId": "gT4zNzvFuk641tgz",
+            "user": {
+              "updatedAt": "2026-05-16T08:39:07.427Z",
+              "createdAt": "2026-05-12T11:56:54.527Z",
+              "id": "82beb348-efd1-4022-9d88-42d9caced284",
+              "email": "team@flowticsai.com",
+              "firstName": "Flowtics",
+              "lastName": "AI",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "xE8mFF8HxPaSXNmi",
+                "userActivatedAt": 1778661186636
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-05-16",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-05-16T11:59:37.317Z",
+    "createdAt": "2026-05-16T11:59:37.317Z",
+    "versionId": "da0c7314-4765-4654-bd79-903dd829e558",
+    "workflowId": "5qOo5YzrPnW8Uj9g",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "mco-write-event",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "ade8c3c8-7baa-4df3-b7a0-bc1ca4d387a0",
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          -1536,
+          144
+        ],
+        "webhookId": "mco-write-event"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Config\nconst CFG = {\n  SUPABASE_URL: 'https://hkqssbomrcbtfbdowtgj.supabase.co',\n  SUPABASE_KEY: '{{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}',\n  MONDAY_TOKEN: '{{REPLACE_WITH_MONDAY_TOKEN_OBSOLETE}}',\n  MONDAY_BOARD_ID: 18399476470\n};\n\nconst body = $input.first().json.body || $input.first().json;\n\nconst required = ['event_id','lead_email','channel','direction','content','timestamp'];\nconst missing = required.filter(f => !body[f]);\nif (missing.length > 0) throw new Error('Missing fields: ' + missing.join(', '));\n\nconst validChannels = ['email','linkedin','voice','sms'];\nconst validDirections = ['inbound','outbound'];\nconst validIntents = ['unknown','no_action','not_interested','referral','already_have_contract','interested','booking'];\nconst validContentTypes = ['message','transcript','summary'];\n\nif (!validChannels.includes(body.channel)) throw new Error('Invalid channel: ' + body.channel);\nif (!validDirections.includes(body.direction)) throw new Error('Invalid direction: ' + body.direction);\n\nlet phone = body.phone_e164 || null;\nif (phone && !/^\\+[1-9]\\d{7,14}$/.test(phone)) phone = null;\n\nreturn [{ json: {\n  ...CFG,\n  event_id: body.event_id.toLowerCase(),\n  lead_email: body.lead_email.toLowerCase().trim(),\n  timestamp: body.timestamp,\n  channel: body.channel,\n  direction: body.direction,\n  content: body.content,\n  content_type: validContentTypes.includes(body.content_type) ? body.content_type : 'message',\n  sender_name: body.sender_name || '',\n  intent: validIntents.includes(body.intent) ? body.intent : 'unknown',\n  metadata: body.metadata || {},\n  workflow_execution_id: body.workflow_execution_id || '',\n  phone_e164: phone,\n  full_name: body.full_name || '',\n  company: body.company || '',\n  linkedin_urn: body.linkedin_urn || null,\n  linkedin_profile_url: body.linkedin_profile_url || null,\n  aimfox_campaign: body.aimfox_campaign || null,\n  email_sender_inbox: body.email_sender_inbox || null,\n  trigger_cross_channel: body.trigger_cross_channel === true,\n  trigger_cross_channel_str: body.trigger_cross_channel === true ? 'yes' : 'no',\n  target_channels: Array.isArray(body.target_channels) ? body.target_channels : [],\n  follow_up_context: body.follow_up_context || ''\n}}];"
+        },
+        "id": "316d4b49-b2dd-461b-b336-c1f2189985cb",
+        "name": "Setup & Validate",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -1328,
+          144
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.SUPABASE_URL }}/rest/v1/rpc/upsert_lead",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "={{ $json.SUPABASE_KEY }}"
+              },
+              {
+                "name": "Authorization",
+                "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({\n  p_lead_email: $json.lead_email,\n  p_full_name: $json.full_name || null,\n  p_company: $json.company || null,\n  p_linkedin_urn: $json.linkedin_urn || null,\n  p_phone_e164: $json.phone_e164 || null,\n  p_channel: $json.channel,\n  p_new_intent: $json.intent,\n  p_aimfox_campaign: $json.aimfox_campaign || null,\n  p_email_sender_inbox: $json.email_sender_inbox || null\n}) }}",
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          }
+        },
+        "id": "233fd04f-2841-41e3-aac8-b7a732335377",
+        "name": "Upsert Lead",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -1104,
+          144
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Merge RPC result back with original setup data\nconst setup = $('Setup & Validate').first().json;\nconst rpcResp = $input.first().json;\nconst lead = Array.isArray(rpcResp) && rpcResp.length > 0 ? rpcResp[0] : {};\nreturn [{ json: {\n  ...setup,\n  monday_item_id: lead.monday_item_id || null,\n  overall_intent: lead.overall_intent || setup.intent\n}}];"
+        },
+        "id": "35882963-0c24-48c0-a878-daba8367bae5",
+        "name": "Merge Lead Data",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -880,
+          144
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.SUPABASE_URL }}/rest/v1/rpc/insert_conversation_event",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "={{ $json.SUPABASE_KEY }}"
+              },
+              {
+                "name": "Authorization",
+                "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Accept",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({\n  p_event_id: $json.event_id,\n  p_lead_email: $json.lead_email,\n  p_timestamp: $json.timestamp,\n  p_channel: $json.channel,\n  p_direction: $json.direction,\n  p_content: $json.content,\n  p_content_type: $json.content_type,\n  p_sender_name: $json.sender_name,\n  p_intent: $json.intent,\n  p_metadata: $json.metadata,\n  p_workflow_execution_id: $json.workflow_execution_id\n}) }}",
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          }
+        },
+        "id": "16d1b0bc-2441-4625-9191-6a7eef5e5fee",
+        "name": "Insert Conversation",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -656,
+          144
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// RPC returns { was_new: bool, event_id: '...' }\n// Use 'yes'/'no' strings for was_inserted_str — n8n string comparisons are reliable\nconst setup = $('Merge Lead Data').first().json;\nconst rpcResp = $input.first().json;\nconst wasNew = rpcResp && rpcResp.was_new === true;\nreturn [{ json: { ...setup, was_inserted: wasNew, was_inserted_str: wasNew ? 'yes' : 'no', insert_resp: rpcResp } }];"
+        },
+        "id": "dd8d07d7-153f-4e24-860a-d1d9532d8fcd",
+        "name": "Check Insert Result",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -448,
+          144
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {},
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{ $json.was_inserted_str }}",
+                "rightValue": "no",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "e43cc3ab-4407-4daa-8c14-5ad74470e5ea",
+        "name": "Was Duplicate?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          -224,
+          144
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify({ status: 'already_written', event_id: $json.event_id }) }}",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "f95c16ea-35ba-4f12-a2b8-9560784d2a19",
+        "name": "Return Already Written",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          0,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {},
+            "conditions": [
+              {
+                "id": "c2",
+                "leftValue": "={{ $json.phone_e164 }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEmpty"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "a6f66735-ef47-4456-b03f-ef398e9da4a0",
+        "name": "Has Phone?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          0,
+          208
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.SUPABASE_URL }}/rest/v1/phone_map",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "={{ $json.SUPABASE_KEY }}"
+              },
+              {
+                "name": "Authorization",
+                "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "resolution=ignore-duplicates"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ phone_e164: $json.phone_e164, lead_email: $json.lead_email, source: $json.channel, confidence: 'medium' }) }}",
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          }
+        },
+        "id": "0ea33569-1e8a-44ae-8cdf-503b295930f8",
+        "name": "Upsert PhoneMap",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          224,
+          64
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {},
+            "conditions": [
+              {
+                "id": "c4",
+                "leftValue": "={{ $('Setup & Validate').first().json.trigger_cross_channel_str }}",
+                "rightValue": "yes",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "6bbb9ded-c3be-4e69-b0a8-f7d97cdd519a",
+        "name": "Cross-Channel?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          1104,
+          304
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const d = $('Extract Monday ID').first().json;\nconst scheduled = new Date(Date.now() + 30*60*1000).toISOString();\nreturn (d.target_channels || []).map(tc => ({ json: {\n  ...d,\n  queue_row: {\n    lead_email: d.lead_email,\n    trigger_channel: d.channel,\n    target_channel: tc,\n    trigger_event_id: d.event_id,\n    scheduled_for: scheduled,\n    status: 'pending',\n    follow_up_context: d.follow_up_context || 'Lead showed interest via ' + d.channel\n  }\n}}));"
+        },
+        "id": "4a2d53b7-f80c-40a9-9b46-6f15c6c0749f",
+        "name": "Build Queue Rows",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1328,
+          224
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "={{ $json.SUPABASE_URL }}/rest/v1/follow_up_queue",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "apikey",
+                "value": "={{ $json.SUPABASE_KEY }}"
+              },
+              {
+                "name": "Authorization",
+                "value": "={{ 'Bearer ' + $json.SUPABASE_KEY }}"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=representation"
+              }
+            ]
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify($json.queue_row) }}",
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          }
+        },
+        "id": "49853288-f723-4231-bfc2-9c43e0aff35b",
+        "name": "Insert FollowUpQueue",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1552,
+          224
+        ]
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify({ status: 'ok', event_id: $('Check Insert Result').first().json.event_id, lead_email: $('Check Insert Result').first().json.lead_email, overall_intent: $('Upsert Lead').item.json.overall_intent }) }}",
+          "options": {
+            "responseCode": 200
+          }
+        },
+        "id": "387ff4f1-777b-4251-a8c2-ade0f8b2a947",
+        "name": "Return OK",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1,
+        "position": [
+          1760,
+          224
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.notion.com/v1/databases/362dc227-748f-8184-892a-c6f8f3151b07/query",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer {{REPLACE_WITH_NOTION_TOKEN}}"
+              },
+              {
+                "name": "Notion-Version",
+                "value": "2022-06-28"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({\n  filter: { property: \"Email\", email: { equals: $('Setup & Validate').item.json.lead_email } },\n  page_size: 1\n}) }}"
+        },
+        "id": "f13ffb6d-d425-4c53-89c1-653fb61573b9",
+        "name": "Notion: Query Lead",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -608,
+          464
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Parse Notion query response, compute COALESCE'd update_props.\nconst results = $input.first().json.results || [];\nconst setup = $('Setup & Validate').item.json;\nconst upsertIntent = ($('Upsert Lead').item.json.overall_intent) || setup.intent || 'unknown';\n\n// Always-update fields: intent (canonical), last channel, last activity.\nconst updateProps = {\n  \"Overall intent\": { select: { name: upsertIntent } },\n  \"Last channel\":   { select: { name: setup.channel } },\n  \"Last activity\":  { date:   { start: setup.timestamp } }\n};\n\nif (results.length > 0) {\n  const existing = results[0].properties || {};\n  const emptyRT    = (p) => !p || !Array.isArray(p.rich_text) || p.rich_text.length === 0;\n  const emptyEmail = (p) => !p || p.email === null || p.email === undefined;\n  const emptyPhone = (p) => !p || p.phone_number === null || p.phone_number === undefined;\n  const emptyUrl   = (p) => !p || p.url === null || p.url === undefined;\n\n  // COALESCE: only fill empty fields on the existing Notion lead.\n  if (setup.company && emptyRT(existing[\"Company\"]))\n    updateProps[\"Company\"] = { rich_text: [{ text: { content: setup.company } }] };\n  if (setup.phone_e164 && emptyPhone(existing[\"Phone\"]))\n    updateProps[\"Phone\"] = { phone_number: setup.phone_e164 };\n  if (setup.linkedin_profile_url && emptyUrl(existing[\"LinkedIn URL\"]))\n    updateProps[\"LinkedIn URL\"] = { url: setup.linkedin_profile_url };\n  if (setup.linkedin_urn && emptyRT(existing[\"LinkedIn URN\"]))\n    updateProps[\"LinkedIn URN\"] = { rich_text: [{ text: { content: setup.linkedin_urn } }] };\n  if (setup.aimfox_campaign && emptyRT(existing[\"Aimfox campaign\"]))\n    updateProps[\"Aimfox campaign\"] = { rich_text: [{ text: { content: setup.aimfox_campaign } }] };\n  if (setup.email_sender_inbox && emptyEmail(existing[\"Sender inbox\"]))\n    updateProps[\"Sender inbox\"] = { email: setup.email_sender_inbox };\n\n  return [{ json: {\n    found: true,\n    notion_lead_id: results[0].id,\n    update_props: updateProps,\n    ...setup\n  }}];\n}\n\nreturn [{ json: {\n  found: false,\n  notion_lead_id: null,\n  update_props: null,\n  ...setup\n}}];\n"
+        },
+        "id": "595ee545-d2b3-4dfe-8501-dd77d2af6b39",
+        "name": "Notion: Extract Lead ID",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -432,
+          464
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {},
+            "conditions": [
+              {
+                "id": "c1",
+                "leftValue": "={{ $json.found }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "33fd6372-2723-4fda-a696-cdd94d9e3596",
+        "name": "IF: Notion Lead Found?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2,
+        "position": [
+          -256,
+          464
+        ]
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "=https://api.notion.com/v1/pages/{{ $json.notion_lead_id }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer {{REPLACE_WITH_NOTION_TOKEN}}"
+              },
+              {
+                "name": "Notion-Version",
+                "value": "2022-06-28"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ properties: $json.update_props }) }}"
+        },
+        "id": "6f0c564d-571d-413a-b853-a08c9bbb2baf",
+        "name": "Notion: Update Lead",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -80,
+          384
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.notion.com/v1/pages",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer {{REPLACE_WITH_NOTION_TOKEN}}"
+              },
+              {
+                "name": "Notion-Version",
+                "value": "2022-06-28"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify((function(){\n  const s = $('Setup & Validate').item.json;\n  const props = {\n    \"Name\":           { title: [{ text: { content: s.full_name || s.lead_email } }] },\n    \"Email\":          { email: s.lead_email },\n    \"Overall intent\": { select: { name: s.intent || \"unknown\" } },\n    \"Last channel\":   { select: { name: s.channel } },\n    \"First channel\":  { select: { name: s.channel } },\n    \"Last activity\":  { date:   { start: s.timestamp } },\n    \"First seen\":     { date:   { start: s.timestamp } }\n  };\n  if (s.company)              props[\"Company\"]         = { rich_text: [{ text: { content: s.company } }] };\n  if (s.phone_e164)           props[\"Phone\"]           = { phone_number: s.phone_e164 };\n  if (s.linkedin_profile_url) props[\"LinkedIn URL\"]    = { url: s.linkedin_profile_url };\n  if (s.linkedin_urn)         props[\"LinkedIn URN\"]    = { rich_text: [{ text: { content: s.linkedin_urn } }] };\n  if (s.aimfox_campaign)      props[\"Aimfox campaign\"] = { rich_text: [{ text: { content: s.aimfox_campaign } }] };\n  if (s.email_sender_inbox)   props[\"Sender inbox\"]    = { email: s.email_sender_inbox };\n  return {\n    parent: { database_id: \"362dc227-748f-8184-892a-c6f8f3151b07\" },\n    properties: props\n  };\n})()) }}"
+        },
+        "id": "b8317c29-dc15-44de-afe2-c8bd544f9709",
+        "name": "Notion: Create Lead",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -80,
+          544
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.notion.com/v1/pages",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer {{REPLACE_WITH_NOTION_TOKEN}}"
+              },
+              {
+                "name": "Notion-Version",
+                "value": "2022-06-28"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "neverError": true
+              }
+            }
+          },
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify((function(){\n  const s = $('Setup & Validate').item.json;\n  const lead = $json;\n  const leadId = lead.id;\n  let leadName = null;\n  try {\n    const tArr = lead.properties && lead.properties.Name && lead.properties.Name.title;\n    if (Array.isArray(tArr) && tArr.length > 0) leadName = tArr[0].plain_text;\n  } catch (e) {}\n  if (!leadName) leadName = s.full_name || s.lead_email;\n  const tsShort = (s.timestamp || '').slice(0, 16).replace('T', ' ');\n  const title = `${leadName} \\u00b7 ${s.channel} ${s.direction} \\u00b7 ${tsShort}`;\n  const props = {\n    \"Event\":        { title: [{ text: { content: title } }] },\n    \"Lead\":         { relation: [{ id: leadId }] },\n    \"Channel\":      { select: { name: s.channel } },\n    \"Direction\":    { select: { name: s.direction } },\n    \"Timestamp\":    { date:   { start: s.timestamp } },\n    \"Intent\":       { select: { name: s.intent || \"unknown\" } },\n    \"Content\":      { rich_text: [{ text: { content: (s.content || \"\").slice(0, 1900) } }] },\n    \"Content type\": { select: { name: s.content_type || \"message\" } },\n    \"Event ID\":     { rich_text: [{ text: { content: s.event_id } }] }\n  };\n  if (s.sender_name)           props[\"Sender name\"]      = { rich_text: [{ text: { content: s.sender_name } }] };\n  if (s.workflow_execution_id) props[\"Workflow exec ID\"] = { rich_text: [{ text: { content: s.workflow_execution_id } }] };\n  const body = {\n    parent: { database_id: \"362dc227-748f-817b-b406-cf43be6f4822\" },\n    properties: props\n  };\n  if (s.content) {\n    body.children = [{\n      object: \"block\", type: \"paragraph\",\n      paragraph: { rich_text: [{ type: \"text\", text: { content: String(s.content).slice(0, 1900) } }] }\n    }];\n  }\n  return body;\n})()) }}"
+        },
+        "id": "0de3918c-9459-47ec-a5e7-0c05ecb00f73",
+        "name": "Notion: Create Conversation",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          144,
+          464
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Setup & Validate",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Setup & Validate": {
+        "main": [
+          [
+            {
+              "node": "Upsert Lead",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Upsert Lead": {
+        "main": [
+          [
+            {
+              "node": "Merge Lead Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Lead Data": {
+        "main": [
+          [
+            {
+              "node": "Insert Conversation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Insert Conversation": {
+        "main": [
+          [
+            {
+              "node": "Check Insert Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check Insert Result": {
+        "main": [
+          [
+            {
+              "node": "Was Duplicate?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Was Duplicate?": {
+        "main": [
+          [
+            {
+              "node": "Return Already Written",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Has Phone?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has Phone?": {
+        "main": [
+          [
+            {
+              "node": "Upsert PhoneMap",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Notion: Query Lead",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Notion: Query Lead",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Upsert PhoneMap": {
+        "main": [
+          [
+            {
+              "node": "Notion: Query Lead",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Notion: Query Lead",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Cross-Channel?": {
+        "main": [
+          [
+            {
+              "node": "Build Queue Rows",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Return OK",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Build Queue Rows": {
+        "main": [
+          [
+            {
+              "node": "Insert FollowUpQueue",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Insert FollowUpQueue": {
+        "main": [
+          [
+            {
+              "node": "Return OK",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Notion: Query Lead": {
+        "main": [
+          [
+            {
+              "node": "Notion: Extract Lead ID",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Notion: Extract Lead ID": {
+        "main": [
+          [
+            {
+              "node": "IF: Notion Lead Found?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "IF: Notion Lead Found?": {
+        "main": [
+          [
+            {
+              "node": "Notion: Update Lead",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Notion: Create Lead",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Notion: Update Lead": {
+        "main": [
+          [
+            {
+              "node": "Notion: Create Conversation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Notion: Create Lead": {
+        "main": [
+          [
+            {
+              "node": "Notion: Create Conversation",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Notion: Create Conversation": {
+        "main": [
+          [
+            {
+              "node": "Cross-Channel?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Flowtics AI",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-05-16T11:59:38.633Z",
+        "id": 47,
+        "workflowId": "5qOo5YzrPnW8Uj9g",
+        "versionId": "da0c7314-4765-4654-bd79-903dd829e558",
+        "event": "activated",
+        "userId": "82beb348-efd1-4022-9d88-42d9caced284"
+      }
+    ]
+  }
 }

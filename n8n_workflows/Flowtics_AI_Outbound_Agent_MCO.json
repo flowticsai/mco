@@ -1,8 +1,8 @@
 {
-  "updatedAt": "2026-05-13T19:37:28.784Z",
+  "updatedAt": "2026-05-15T19:39:03.275Z",
   "createdAt": "2026-05-12T19:36:55.264Z",
   "id": "xE8mFF8HxPaSXNmi",
-  "name": "Flowtics AI Outbound agent- MCO",
+  "name": "Flowtics ai outbound agent-MCO",
   "description": null,
   "active": true,
   "isArchived": false,
@@ -24,7 +24,7 @@
       "typeVersion": 1.2,
       "position": [
         0,
-        0
+        -144
       ],
       "notes": "Cron heartbeat — fires every 4 hours. Adjust the interval to match how often you want Maya to sweep Supabase for pending follow-ups."
     },
@@ -65,11 +65,11 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+              "value": "{{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}"
             },
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+              "value": "Bearer {{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}"
             },
             {
               "name": "Accept",
@@ -86,8 +86,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        240,
-        0
+        224,
+        -144
       ],
       "notes": "Reads leads where status='Pending' from Supabase via PostgREST. Adjust SUPABASE_LEADS_TABLE in .env if your table isn't named `leads`. Update the column filter if your status column has a different name."
     },
@@ -100,8 +100,8 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        720,
-        0
+        448,
+        -144
       ],
       "notes": "Process leads serially so we don't hammer Retell or Supabase. After the call is dispatched the loop continues with the next lead."
     },
@@ -114,7 +114,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer $env.OPENAI_API_KEY"
+              "value": "=Bearer {{REPLACE_WITH_OPENAI_API_KEY}}"
             },
             {
               "name": "Content-Type",
@@ -134,8 +134,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1456,
-        16
+        1344,
+        -208
       ],
       "notes": "Compresses the full thread into a concise brief that fits inside the Retell dynamic variable. Model is gpt-4o-mini for cost; bump to gpt-4o if you want higher fidelity."
     },
@@ -151,7 +151,7 @@
             },
             {
               "id": "s2",
-              "name": "=lead_email",
+              "name": "lead_email",
               "value": "={{ $('Loop One Lead at a Time').item.json.lead_email }}",
               "type": "string"
             },
@@ -164,25 +164,25 @@
             {
               "id": "s4",
               "name": "first_name",
-              "value": "={{ ($('Fetch Lead Record').item.json[0]?.full_name || '').split(' ')[0] || 'there' }}",
-              "type": "string"
-            },
-            {
-              "id": "s5",
-              "name": "full_name",
-              "value": "={{ $('Fetch Lead Record').item.json[0]?.full_name || '' }}",
+              "value": "={{ $('Build OpenAI Request').item.json.lead.full_name }}",
               "type": "string"
             },
             {
               "id": "s6",
               "name": "company_name",
-              "value": "={{ $('Fetch Lead Record').item.json[0]?.company || 'your business' }}",
+              "value": "={{ $('Build OpenAI Request').item.json.lead.company }}",
               "type": "string"
             },
             {
               "id": "s7",
               "name": "phone_e164",
-              "value": "={{ $('Fetch Lead Record').item.json[0]?.phone_e164 || '' }}",
+              "value": "=+12137997361",
+              "type": "string"
+            },
+            {
+              "id": "6ed16337-c8ca-4a6c-aed8-150fc16ae775",
+              "name": "",
+              "value": "",
               "type": "string"
             }
           ]
@@ -194,8 +194,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        1680,
-        16
+        1568,
+        -208
       ],
       "notes": "Extracts the summary text from OpenAI's response and re-attaches the lead row so the next node has both."
     },
@@ -208,7 +208,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer {{ $env.RETELL_API_KEY }}"
+              "value": "=Bearer key_75d607ff24a97a1ac65900642c2a"
             },
             {
               "name": "Content-Type",
@@ -218,7 +218,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"from_number\": \"{{ $env.FLOWTICS_FROM_NUMBER }}\",\n  \"to_number\": \"{{ $json.phone_e164 }}\",\n  \"override_agent_id\": \"agent_072589071a0047d70067a510d3\",\n  \"retell_llm_dynamic_variables\": {\n    \"first_name\": \"{{ $json.first_name }}\",\n    \"company_name\": \"{{ $json.company_name }}\",\n    \"booking_link\": \"{{ $env.FLOWTICS_BOOKING_URL }}\",\n    \"previous_conversation_summary\": \"{{ $json.previous_conversation_summary }}\",\n    \"lead_email\": \"{{ $json.lead_email }}\"\n  },\n  \"metadata\": {\n    \"source\": \"n8n_flowtics_followup\",\n    \"client\": \"flowtics\",\n    \"queue_id\": \"{{ $json.queue_id }}\",\n    \"lead_email\": \"{{ $json.lead_email }}\"\n  }\n}",
+        "jsonBody": "={{ JSON.stringify($json.retell_body) }}",
         "options": {
           "timeout": 15000
         }
@@ -228,8 +228,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1920,
-        16
+        2016,
+        -208
       ],
       "notes": "Dispatches the outbound follow-up call. The previous_conversation_summary is injected as a dynamic variable referenced by {{previous_conversation_summary}} in the Maya prompt. Adjust lead.phone / lead.first_name / lead.company_name expressions if your leads table uses different column names."
     },
@@ -251,11 +251,11 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+              "value": "{{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}"
             },
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+              "value": "Bearer {{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}"
             },
             {
               "name": "Content-Type",
@@ -279,8 +279,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2160,
-        16
+        2240,
+        -144
       ],
       "notes": "Flips the lead status from 'Pending' to 'Called' so the next schedule tick doesn't re-dial the same person. Drop or rename the last_called_at field if you don't have that column."
     },
@@ -294,7 +294,7 @@
       "typeVersion": 2.1,
       "position": [
         0,
-        336
+        96
       ],
       "id": "1a9eef24-9d39-4ab0-974d-e8677fe79e63",
       "name": "Webhook",
@@ -309,8 +309,8 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        16,
-        528
+        0,
+        320
       ],
       "id": "9d332416-548e-4f81-948d-8629223dd8b2",
       "name": "Webhook1",
@@ -343,8 +343,8 @@
       "type": "n8n-nodes-base.filter",
       "typeVersion": 2.3,
       "position": [
-        336,
-        528
+        224,
+        320
       ],
       "id": "8fe29e1e-6528-4f5a-a561-1b86e6672267",
       "name": "Filter"
@@ -372,8 +372,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        768,
-        528
+        672,
+        320
       ],
       "id": "mco-write-event-post-call-001",
       "name": "POST /mco-write-event"
@@ -403,11 +403,11 @@
           "parameters": [
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+              "value": "{{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}"
             },
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+              "value": "Bearer {{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}"
             },
             {
               "name": "Accept",
@@ -422,7 +422,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1200,
+        672,
         -208
       ],
       "id": "fetch-lead-record-001",
@@ -451,7 +451,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1440,
+        896,
         -208
       ],
       "id": "mco-fetch-context-001",
@@ -464,8 +464,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        560,
-        528
+        448,
+        320
       ],
       "id": "build-mco-write-payload-001",
       "name": "Build MCO Write Payload"
@@ -477,11 +477,24 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1648,
+        1120,
         -208
       ],
       "id": "build-openai-request-001",
       "name": "Build OpenAI Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pull from Prepare Retell Variables (immediate upstream via Set node)\nconst v = $input.first().json;\n\n// Retell-purchased number (clean E.164 — strip any parens/dashes/spaces if user re-enters)\nconst rawFrom = '+15722124790';\nconst fromNumber = '+' + rawFrom.replace(/[^0-9]/g, '');\n\nreturn [{ json: {\n  retell_body: {\n    from_number: fromNumber,\n    to_number: v.phone_e164,\n    override_agent_id: 'agent_ff863b1414049444c174360809',\n    retell_llm_dynamic_variables: {\n      first_name: v.first_name || 'there',\n      company_name: v.company_name || 'your business',\n      booking_link: 'https://calendly.com/mahfujurrahman511351/30min',\n      previous_conversation_summary: v.previous_conversation_summary || 'No prior conversation on record.',\n      lead_email: v.lead_email\n    },\n    metadata: {\n      source: 'n8n_flowtics_followup',\n      client: 'flowtics',\n      queue_id: v.queue_id,\n      lead_email: v.lead_email\n    }\n  },\n  queue_id: v.queue_id,\n  lead_email: v.lead_email,\n  phone_e164: v.phone_e164\n}}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        -208
+      ],
+      "id": "build-retell-request-001",
+      "name": "Build Retell Request"
     }
   ],
   "connections": {
@@ -511,7 +524,7 @@
       "main": [
         [
           {
-            "node": "Retell: Create Phone Call",
+            "node": "Build Retell Request",
             "type": "main",
             "index": 0
           }
@@ -628,6 +641,17 @@
           }
         ]
       ]
+    },
+    "Build Retell Request": {
+      "main": [
+        [
+          {
+            "node": "Retell: Create Phone Call",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -639,7 +663,7 @@
   "staticData": {
     "node:Schedule Trigger": {
       "recurrenceRules": [
-        16
+        8
       ]
     }
   },
@@ -3880,11 +3904,54 @@
           "item": 0
         }
       }
+    ],
+    "Summarize Prior Conversation": [
+      {
+        "json": {
+          "id": "chatcmpl-Dfmsdn6QnGjViIOnHqWoxnmJWNlzn",
+          "object": "chat.completion",
+          "created": 1778851715,
+          "model": "gpt-4o-mini-2024-07-18",
+          "choices": [
+            {
+              "index": 0,
+              "message": {
+                "role": "assistant",
+                "content": "- **Lead**: Anik from Scala AI\n- **Business**: Scala AI\n- **Interest**: Interested in scheduling a demo\n- **Pain Points/Goals**: Not explicitly mentioned in the conversation history\n- **Objections/Concerns**: None noted in the conversation history\n- **Commitments/Next Steps**: Agreed to schedule a demo on Thursday\n- **Last Channel and Recency of Contact**: Last contact was via voice on May 13, 2026",
+                "refusal": null,
+                "annotations": []
+              },
+              "logprobs": null,
+              "finish_reason": "stop"
+            }
+          ],
+          "usage": {
+            "prompt_tokens": 387,
+            "completion_tokens": 104,
+            "total_tokens": 491,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "audio_tokens": 0
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "audio_tokens": 0,
+              "accepted_prediction_tokens": 0,
+              "rejected_prediction_tokens": 0
+            }
+          },
+          "service_tier": "default",
+          "system_fingerprint": "fp_3ea19caa4a"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
     ]
   },
-  "versionId": "d7dd1a23-81c6-41d1-b4bb-cab2efc720c0",
-  "activeVersionId": "0cca280e-3719-4797-adce-4e1a5f13fea8",
-  "versionCounter": 88,
+  "versionId": "ddacc4cb-3054-4098-9486-5d41712d8bd9",
+  "activeVersionId": "ddacc4cb-3054-4098-9486-5d41712d8bd9",
+  "versionCounter": 239,
   "triggerCount": 3,
   "shared": [
     {
@@ -3909,7 +3976,7 @@
             "userId": "82beb348-efd1-4022-9d88-42d9caced284",
             "projectId": "gT4zNzvFuk641tgz",
             "user": {
-              "updatedAt": "2026-05-13T08:33:09.754Z",
+              "updatedAt": "2026-05-16T08:39:07.427Z",
               "createdAt": "2026-05-12T11:56:54.527Z",
               "id": "82beb348-efd1-4022-9d88-42d9caced284",
               "email": "team@flowticsai.com",
@@ -3924,7 +3991,7 @@
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2026-05-13",
+              "lastActiveAt": "2026-05-16",
               "isPending": false
             }
           }
@@ -3934,9 +4001,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-05-13T15:47:50.143Z",
-    "createdAt": "2026-05-13T15:47:50.143Z",
-    "versionId": "0cca280e-3719-4797-adce-4e1a5f13fea8",
+    "updatedAt": "2026-05-15T19:39:07.186Z",
+    "createdAt": "2026-05-15T17:31:07.427Z",
+    "versionId": "ddacc4cb-3054-4098-9486-5d41712d8bd9",
     "workflowId": "xE8mFF8HxPaSXNmi",
     "nodes": [
       {
@@ -3956,7 +4023,7 @@
         "typeVersion": 1.2,
         "position": [
           0,
-          0
+          -144
         ],
         "notes": "Cron heartbeat — fires every 4 hours. Adjust the interval to match how often you want Maya to sweep Supabase for pending follow-ups."
       },
@@ -3997,11 +4064,11 @@
             "parameters": [
               {
                 "name": "apikey",
-                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+                "value": "{{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}"
               },
               {
                 "name": "Authorization",
-                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+                "value": "Bearer {{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}"
               },
               {
                 "name": "Accept",
@@ -4018,8 +4085,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          240,
-          0
+          224,
+          -144
         ],
         "notes": "Reads leads where status='Pending' from Supabase via PostgREST. Adjust SUPABASE_LEADS_TABLE in .env if your table isn't named `leads`. Update the column filter if your status column has a different name."
       },
@@ -4032,8 +4099,8 @@
         "type": "n8n-nodes-base.splitInBatches",
         "typeVersion": 3,
         "position": [
-          720,
-          0
+          448,
+          -144
         ],
         "notes": "Process leads serially so we don't hammer Retell or Supabase. After the call is dispatched the loop continues with the next lead."
       },
@@ -4046,7 +4113,7 @@
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "=Bearer {{ $env.OPENAI_API_KEY }}"
+                "value": "=Bearer {{REPLACE_WITH_OPENAI_API_KEY}}"
               },
               {
                 "name": "Content-Type",
@@ -4066,8 +4133,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          1440,
-          0
+          1344,
+          -208
         ],
         "notes": "Compresses the full thread into a concise brief that fits inside the Retell dynamic variable. Model is gpt-4o-mini for cost; bump to gpt-4o if you want higher fidelity."
       },
@@ -4096,25 +4163,25 @@
               {
                 "id": "s4",
                 "name": "first_name",
-                "value": "={{ ($('Fetch Lead Record').item.json[0]?.full_name || '').split(' ')[0] || 'there' }}",
-                "type": "string"
-              },
-              {
-                "id": "s5",
-                "name": "full_name",
-                "value": "={{ $('Fetch Lead Record').item.json[0]?.full_name || '' }}",
+                "value": "={{ $('Build OpenAI Request').item.json.lead.full_name }}",
                 "type": "string"
               },
               {
                 "id": "s6",
                 "name": "company_name",
-                "value": "={{ $('Fetch Lead Record').item.json[0]?.company || 'your business' }}",
+                "value": "={{ $('Build OpenAI Request').item.json.lead.company }}",
                 "type": "string"
               },
               {
                 "id": "s7",
                 "name": "phone_e164",
-                "value": "={{ $('Fetch Lead Record').item.json[0]?.phone_e164 || '' }}",
+                "value": "=+12137997361",
+                "type": "string"
+              },
+              {
+                "id": "6ed16337-c8ca-4a6c-aed8-150fc16ae775",
+                "name": "",
+                "value": "",
                 "type": "string"
               }
             ]
@@ -4126,8 +4193,8 @@
         "type": "n8n-nodes-base.set",
         "typeVersion": 3.4,
         "position": [
-          1680,
-          0
+          1568,
+          -208
         ],
         "notes": "Extracts the summary text from OpenAI's response and re-attaches the lead row so the next node has both."
       },
@@ -4140,7 +4207,7 @@
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "=Bearer {{ $env.RETELL_API_KEY }}"
+                "value": "=Bearer key_75d607ff24a97a1ac65900642c2a"
               },
               {
                 "name": "Content-Type",
@@ -4150,7 +4217,7 @@
           },
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={\n  \"from_number\": \"{{ $env.FLOWTICS_FROM_NUMBER }}\",\n  \"to_number\": \"{{ $json.phone_e164 }}\",\n  \"override_agent_id\": \"agent_072589071a0047d70067a510d3\",\n  \"retell_llm_dynamic_variables\": {\n    \"first_name\": \"{{ $json.first_name }}\",\n    \"company_name\": \"{{ $json.company_name }}\",\n    \"booking_link\": \"{{ $env.FLOWTICS_BOOKING_URL }}\",\n    \"previous_conversation_summary\": \"{{ $json.previous_conversation_summary }}\",\n    \"lead_email\": \"{{ $json.lead_email }}\"\n  },\n  \"metadata\": {\n    \"source\": \"n8n_flowtics_followup\",\n    \"client\": \"flowtics\",\n    \"queue_id\": \"{{ $json.queue_id }}\",\n    \"lead_email\": \"{{ $json.lead_email }}\"\n  }\n}",
+          "jsonBody": "={{ JSON.stringify($json.retell_body) }}",
           "options": {
             "timeout": 15000
           }
@@ -4160,8 +4227,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          1920,
-          0
+          2016,
+          -208
         ],
         "notes": "Dispatches the outbound follow-up call. The previous_conversation_summary is injected as a dynamic variable referenced by {{previous_conversation_summary}} in the Maya prompt. Adjust lead.phone / lead.first_name / lead.company_name expressions if your leads table uses different column names."
       },
@@ -4183,11 +4250,11 @@
             "parameters": [
               {
                 "name": "apikey",
-                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+                "value": "{{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}"
               },
               {
                 "name": "Authorization",
-                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+                "value": "Bearer {{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}"
               },
               {
                 "name": "Content-Type",
@@ -4211,8 +4278,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          2160,
-          0
+          2240,
+          -144
         ],
         "notes": "Flips the lead status from 'Pending' to 'Called' so the next schedule tick doesn't re-dial the same person. Drop or rename the last_called_at field if you don't have that column."
       },
@@ -4226,7 +4293,7 @@
         "typeVersion": 2.1,
         "position": [
           0,
-          336
+          96
         ],
         "id": "1a9eef24-9d39-4ab0-974d-e8677fe79e63",
         "name": "Webhook",
@@ -4241,8 +4308,8 @@
         "type": "n8n-nodes-base.webhook",
         "typeVersion": 2.1,
         "position": [
-          16,
-          528
+          0,
+          320
         ],
         "id": "9d332416-548e-4f81-948d-8629223dd8b2",
         "name": "Webhook1",
@@ -4275,8 +4342,8 @@
         "type": "n8n-nodes-base.filter",
         "typeVersion": 2.3,
         "position": [
-          336,
-          528
+          224,
+          320
         ],
         "id": "8fe29e1e-6528-4f5a-a561-1b86e6672267",
         "name": "Filter"
@@ -4304,8 +4371,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          600,
-          600
+          672,
+          320
         ],
         "id": "mco-write-event-post-call-001",
         "name": "POST /mco-write-event"
@@ -4335,11 +4402,11 @@
             "parameters": [
               {
                 "name": "apikey",
-                "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+                "value": "{{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}"
               },
               {
                 "name": "Authorization",
-                "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+                "value": "Bearer {{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}"
               },
               {
                 "name": "Accept",
@@ -4354,8 +4421,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          1200,
-          -200
+          672,
+          -208
         ],
         "id": "fetch-lead-record-001",
         "name": "Fetch Lead Record"
@@ -4383,8 +4450,8 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          1440,
-          -200
+          896,
+          -208
         ],
         "id": "mco-fetch-context-001",
         "name": "POST /mco-fetch-context"
@@ -4396,8 +4463,8 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          400,
-          600
+          448,
+          320
         ],
         "id": "build-mco-write-payload-001",
         "name": "Build MCO Write Payload"
@@ -4409,11 +4476,24 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          1640,
-          -200
+          1120,
+          -208
         ],
         "id": "build-openai-request-001",
         "name": "Build OpenAI Request"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Pull from Prepare Retell Variables (immediate upstream via Set node)\nconst v = $input.first().json;\n\n// Retell-purchased number (clean E.164 — strip any parens/dashes/spaces if user re-enters)\nconst rawFrom = '+15722124790';\nconst fromNumber = '+' + rawFrom.replace(/[^0-9]/g, '');\n\nreturn [{ json: {\n  retell_body: {\n    from_number: fromNumber,\n    to_number: v.phone_e164,\n    override_agent_id: 'agent_ff863b1414049444c174360809',\n    retell_llm_dynamic_variables: {\n      first_name: v.first_name || 'there',\n      company_name: v.company_name || 'your business',\n      booking_link: 'https://calendly.com/mahfujurrahman511351/30min',\n      previous_conversation_summary: v.previous_conversation_summary || 'No prior conversation on record.',\n      lead_email: v.lead_email\n    },\n    metadata: {\n      source: 'n8n_flowtics_followup',\n      client: 'flowtics',\n      queue_id: v.queue_id,\n      lead_email: v.lead_email\n    }\n  },\n  queue_id: v.queue_id,\n  lead_email: v.lead_email,\n  phone_e164: v.phone_e164\n}}];\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1792,
+          -208
+        ],
+        "id": "build-retell-request-001",
+        "name": "Build Retell Request"
       }
     ],
     "connections": {
@@ -4443,7 +4523,7 @@
         "main": [
           [
             {
-              "node": "Retell: Create Phone Call",
+              "node": "Build Retell Request",
               "type": "main",
               "index": 0
             }
@@ -4560,26 +4640,29 @@
             }
           ]
         ]
+      },
+      "Build Retell Request": {
+        "main": [
+          [
+            {
+              "node": "Retell: Create Phone Call",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Flowtics AI",
-    "name": null,
-    "description": null,
-    "autosaved": false,
+    "name": "Version ddacc4cb",
+    "description": "",
+    "autosaved": true,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-05-13T15:47:50.228Z",
-        "id": 18,
+        "createdAt": "2026-05-15T19:39:07.185Z",
+        "id": 26,
         "workflowId": "xE8mFF8HxPaSXNmi",
-        "versionId": "0cca280e-3719-4797-adce-4e1a5f13fea8",
-        "event": "activated",
-        "userId": "82beb348-efd1-4022-9d88-42d9caced284"
-      },
-      {
-        "createdAt": "2026-05-13T15:47:52.489Z",
-        "id": 19,
-        "workflowId": "xE8mFF8HxPaSXNmi",
-        "versionId": "0cca280e-3719-4797-adce-4e1a5f13fea8",
+        "versionId": "ddacc4cb-3054-4098-9486-5d41712d8bd9",
         "event": "activated",
         "userId": "82beb348-efd1-4022-9d88-42d9caced284"
       }

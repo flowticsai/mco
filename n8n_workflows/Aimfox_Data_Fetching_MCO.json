@@ -1,0 +1,270 @@
+{
+  "updatedAt": "2026-05-15T21:34:09.897Z",
+  "createdAt": "2026-05-15T21:33:29.044Z",
+  "id": "o9l5PClHznNgZIK8",
+  "name": "Aimfox- Data Fetching MCO",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "url": "=https://api.aimfox.com/api/v2/accounts/{{ $json.body.event.account.id }}/leads/{{ $json.body.event.target.id }}/conversation",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 93c6cfc3-5708-43b1-b8f1-e58eb2473edd"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        208,
+        0
+      ],
+      "id": "cd04649c-ab6c-43f1-9644-0cb95d65db09",
+      "name": "HTTP Request",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "url": "=https://api.aimfox.com/api/v2/accounts/{{ $('Webhook').item.json.body.event.account.id }}/conversations/{{ $json.urn }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 93c6cfc3-5708-43b1-b8f1-e58eb2473edd"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        432,
+        0
+      ],
+      "id": "4ccea756-01c4-4e99-a67e-7adfc5f9a4b2",
+      "name": "HTTP Request1",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1Ktl0qO9XDi4El-PSTwrshUU__6hwXzCfSqDEMhb0o2Q",
+          "mode": "list",
+          "cachedResultName": "Aimfox- Adapture",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Ktl0qO9XDi4El-PSTwrshUU__6hwXzCfSqDEMhb0o2Q/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1926729378,
+          "mode": "list",
+          "cachedResultName": "Data Capture",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1C9sG3EJmvHx8FYlK06WRCKSUPtPPDicGFByNp7uvtLQ/edit#gid=1926729378"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "ID": "={{ $execution.id }}",
+            "Account ID": "={{ $('Webhook').item.json.body.event.account.id }}",
+            "Lead ID": "={{ $('Webhook').item.json.body.event.target.id }}",
+            "Conversation URN": "={{ $('HTTP Request').item.json.urn }}",
+            "Campaign Name": "={{ $('Webhook').item.json.body.event.campaign.name }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Account ID",
+              "displayName": "Account ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Lead ID",
+              "displayName": "Lead ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Conversation URN",
+              "displayName": "Conversation URN",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Campaign Name",
+              "displayName": "Campaign Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        656,
+        0
+      ],
+      "id": "ca6cf65e-722e-41d4-9c83-7ecb882acf2a",
+      "name": "Append row in sheet",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "3e030494-4719-491d-8291-2c9523e71c3d",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "41571b7a-bd17-4695-8748-951ac5b0d345",
+      "name": "Webhook",
+      "webhookId": "3e030494-4719-491d-8291-2c9523e71c3d"
+    }
+  ],
+  "connections": {
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "staticData": null,
+  "meta": null,
+  "pinData": {},
+  "versionId": "72709f46-518f-4e22-93a7-251d3e645010",
+  "activeVersionId": null,
+  "versionCounter": 3,
+  "triggerCount": 0,
+  "shared": [
+    {
+      "updatedAt": "2026-05-15T21:33:29.044Z",
+      "createdAt": "2026-05-15T21:33:29.044Z",
+      "role": "workflow:owner",
+      "workflowId": "o9l5PClHznNgZIK8",
+      "projectId": "gT4zNzvFuk641tgz",
+      "project": {
+        "updatedAt": "2026-05-12T14:23:45.440Z",
+        "createdAt": "2026-05-12T11:56:55.020Z",
+        "id": "gT4zNzvFuk641tgz",
+        "name": "Flowtics AI <team@flowticsai.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "82beb348-efd1-4022-9d88-42d9caced284",
+        "projectRelations": [
+          {
+            "updatedAt": "2026-05-12T11:56:55.020Z",
+            "createdAt": "2026-05-12T11:56:55.020Z",
+            "userId": "82beb348-efd1-4022-9d88-42d9caced284",
+            "projectId": "gT4zNzvFuk641tgz",
+            "user": {
+              "updatedAt": "2026-05-16T08:39:07.427Z",
+              "createdAt": "2026-05-12T11:56:54.527Z",
+              "id": "82beb348-efd1-4022-9d88-42d9caced284",
+              "email": "team@flowticsai.com",
+              "firstName": "Flowtics",
+              "lastName": "AI",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "xE8mFF8HxPaSXNmi",
+                "userActivatedAt": 1778661186636
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-05-16",
+              "isPending": false
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "tags": [
+    {
+      "updatedAt": "2026-05-15T21:33:50.198Z",
+      "createdAt": "2026-05-15T21:33:50.198Z",
+      "id": "ZC9vK62RQ2GXeukc",
+      "name": "Aimfox"
+    }
+  ],
+  "activeVersion": null
+}

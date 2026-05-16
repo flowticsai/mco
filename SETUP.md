@@ -2,6 +2,25 @@
 
 Follow these steps in order. Each phase builds on the previous one.
 
+> **2026-05-16 update:** The CRM is now Notion, not Monday. Monday phases below are legacy — keep them for existing installs in dual-write mode, but new installs should follow [docs/Notion_CRM.md](docs/Notion_CRM.md) instead of the Monday + Retool sections.
+
+---
+
+## Phase 0 (NEW): Notion CRM
+
+1. Go to https://www.notion.so/profile/integrations → **+ New integration** → name `MCO` → workspace = yours → Save → copy the **Internal Integration Secret**.
+2. In Notion, create a top-level page **`MCO CRM`**. Click `…` → **Connections** → add the `MCO` integration.
+3. In `.env`, add:
+   ```
+   NOTION_TOKEN=<your secret>
+   NOTION_PARENT_PAGE_ID=<32-char id from the page URL>
+   ```
+4. Run `python .tmp/create_notion_crm.py` (creates the Leads + Conversations databases under the parent page, runs a smoke test, prints the DB IDs).
+5. Copy the printed DB IDs into `.env` as `NOTION_LEADS_DB_ID` and `NOTION_CONVERSATIONS_DB_ID`.
+6. Run `python .tmp/patch_write_event_notion.py` to add the 6 Notion nodes to `MCO - Write Conversation Event`.
+
+After this, every workflow that calls `/mco-write-event` will also write to Notion. See [docs/Notion_CRM.md](docs/Notion_CRM.md) for the full schema and operational notes.
+
 ---
 
 ## Phase 1: Supabase (15 min)

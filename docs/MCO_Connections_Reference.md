@@ -1,6 +1,8 @@
 # MCO System — Connections Reference
 ### Every component, URL, credential, and data flow in one place
 
+> **2026-05-16 update — Notion CRM is now live.** The five MCO workflows below are unchanged; the only difference is that `MCO - Write Conversation Event` now dual-writes to **Notion** in addition to Supabase and Monday. Every channel agent that calls `/mco-write-event` automatically reaches Notion. See [Notion_CRM.md](Notion_CRM.md) for the full Notion side. Monday is now **legacy** and scheduled for deletion via `tools/kill_monday.py`.
+
 ---
 
 ## Webhook URLs (Entry Points)
@@ -219,11 +221,20 @@ These are called directly by MCO workflows — not raw SQL.
 
 ## External Platform Connections
 
-### Monday.com
+### Notion CRM ✨ NEW (active 2026-05-16)
+**Workspace:** Flowtics AI's Workspace  
+**Parent page:** `MCO CRM` (`362dc227-748f-8071-8ccd-d5388d352b06`)  
+**Databases:** Leads (`362dc227-748f-8184-892a-c6f8f3151b07`), Conversations (`362dc227-748f-817b-b406-cf43be6f4822`)  
+**Token:** `NOTION_TOKEN` in `.env`, also inlined in Write Event's Notion HTTP nodes  
+**Used by:** `MCO - Write Conversation Event` (6 nodes between Monday branch and Cross-Channel? gate)  
+**What MCO does:** Upserts the lead (COALESCE-style enrichment on update), creates a Conversation row with two-way relation back to Leads, fills the page body with the message content.  
+**Full reference:** [Notion_CRM.md](Notion_CRM.md)
+
+### Monday.com — LEGACY (scheduled for removal)
 **Board ID:** `18399476470`  
 **Token:** Stored inside Write Event's Setup node  
-**Used by:** Write Event only  
-**What MCO does:** Creates items for new leads, posts conversation updates, updates intent + channel columns
+**Used by:** Write Event (5 nodes), Aimfox Reply Agent (3 standalone `mondayCom` nodes)  
+**Status:** Dual-write transition. Removal via `python tools/kill_monday.py --apply`.
 
 ### Gmail
 **Account:** `anik@nextus.ai`  
@@ -290,7 +301,8 @@ Schedule (every 15 min)
 | Service | Value / Location | Used in |
 |---|---|---|
 | Supabase service key | Inside every MCO workflow's Setup/Config node | All 5 MCO workflows |
-| Monday.com token | Inside Write Event's Setup node | Write Event |
+| Monday.com token | Inside Write Event's Setup node | Write Event (legacy) |
+| Notion integration token | `NOTION_TOKEN` in `.env`, also inlined in Write Event Notion HTTP nodes | Write Event |
 | Anthropic (Claude) | n8n credential ID: `tFYLbQt9S6IzWYNd` | Connection Accepted Handler, Coordinator |
 | Aimfox API token | `Bearer 8e65df8c-3fe2-4ecf-bf05-8261ea85464b` — hardcoded in nodes | Connection Accepted Handler, Coordinator |
 | Gmail OAuth2 | To be linked in n8n on Send Email node | Coordinator |

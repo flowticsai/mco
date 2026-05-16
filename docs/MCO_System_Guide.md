@@ -1,6 +1,8 @@
 # MCO System — Plain English Guide
 ### What it is, how it works, and why we built it this way
 
+> **2026-05-16 update — CRM moved from Monday.com to Notion.** The shared memory (Supabase) and all five n8n workflows are unchanged. The pipeline-visible front end is now a Notion CRM (`MCO CRM` page with Leads + Conversations databases). Monday is in dual-write transition and scheduled for removal. See [Notion_CRM.md](Notion_CRM.md).
+
 ---
 
 ## The Problem We Were Solving
@@ -218,8 +220,11 @@ Used for all warm follow-up emails. This is your personal/work email, not a cold
 ### Aimfox API
 Used for all LinkedIn messages. Aimfox is the bridge between our automation and LinkedIn — since LinkedIn has no public messaging API, Aimfox handles sending and receiving on our behalf.
 
-### Monday.com
-Used for pipeline tracking only. Every time a conversation is logged, the lead's Monday.com item is updated with the latest message and intent. This keeps your pipeline visible without any manual updates.
+### Notion CRM ✨ (new — 2026-05-16)
+Used for human-readable pipeline tracking. Every time a conversation is logged, the lead's Notion page is upserted (created or updated) and a related Conversation row is added. Two linked databases: **Leads** (one row per lead, intent + last channel + contact info) and **Conversations** (one row per message, related back to the Lead). Anyone with workspace access can filter by intent, browse the full timeline per lead, and act on it. See [Notion_CRM.md](Notion_CRM.md).
+
+### Monday.com — LEGACY
+Same pipeline-tracking role Notion now plays. Still receiving writes during the dual-write transition. Will be removed via `tools/kill_monday.py` once the team is comfortable with Notion.
 
 ---
 

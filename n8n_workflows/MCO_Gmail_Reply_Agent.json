@@ -1,7 +1,7 @@
 {
-  "updatedAt": "2026-05-11T20:40:35.399Z",
-  "createdAt": "2026-05-11T20:18:52.111Z",
-  "id": "7pTHnRue85rqTvXk",
+  "updatedAt": "2026-05-13T19:29:32.067Z",
+  "createdAt": "2026-05-12T19:13:06.937Z",
+  "id": "mFBOGdMAsXRKD1Pv",
   "name": "MCO - Gmail Reply Agent",
   "description": null,
   "active": false,
@@ -18,18 +18,18 @@
         },
         "filters": {}
       },
-      "id": "n-gmail-trigger",
+      "id": "cf4d9678-dacf-487b-9352-570fec9538ff",
       "name": "Gmail Trigger",
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1,
       "position": [
-        208,
-        400
+        -3360,
+        320
       ],
       "credentials": {
         "gmailOAuth2": {
-          "id": "hlddPOHSrkIvQo5A",
-          "name": "MCO Email"
+          "id": "IC6TPjXMVxTyn2R9",
+          "name": "Gmail account"
         }
       }
     },
@@ -37,19 +37,19 @@
       "parameters": {
         "jsCode": "\nconst email = $input.first().json;\n\n// Parse from address - handle multiple Gmail trigger output shapes\nlet leadEmail = '', leadName = '';\nif (email.from) {\n  if (Array.isArray(email.from?.value)) {\n    leadEmail = (email.from.value[0]?.address || '').toLowerCase().trim();\n    leadName  = email.from.value[0]?.name || '';\n  } else if (typeof email.from === 'string') {\n    const m = email.from.match(/<(.+?)>/);\n    leadEmail = (m ? m[1] : email.from).toLowerCase().trim();\n    leadName  = email.from.split('<')[0].trim();\n  } else if (email.from?.address) {\n    leadEmail = email.from.address.toLowerCase().trim();\n    leadName  = email.from.name || '';\n  }\n}\nif (!leadName) leadName = leadEmail.split('@')[0];\n\nconst subject   = email.subject || '';\nconst body      = (email.text || email.snippet || '').trim();\nconst messageId = email.id || email.messageId || '';\nconst threadId  = email.threadId || '';\n\n// Skip: no email, noreply senders, not a reply, empty body\nif (!leadEmail || leadEmail.includes('noreply') || leadEmail.includes('no-reply')) return [];\nconst isReply = subject.toLowerCase().startsWith('re:') || !!email.inReplyTo || !!email['in-reply-to'];\nif (!isReply) return [];\nif (!body) return [];\n\nreturn [{ json: {\n  lead_email:   leadEmail,\n  lead_name:    leadName,\n  subject:      subject.replace(/^Re:\\s*/i, ''),\n  full_subject: subject,\n  body:         body.slice(0, 3000),\n  message_id:   messageId,\n  thread_id:    threadId\n}}];\n"
       },
-      "id": "n-extract",
+      "id": "c14b178c-dcb5-42d5-a273-0d77806fb820",
       "name": "Extract & Filter",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        480,
-        400
+        -3088,
+        320
       ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://nextus.app.n8n.cloud/webhook/mco-fetch-context",
+        "url": "https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-fetch-context",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -70,32 +70,32 @@
           }
         }
       },
-      "id": "n-fetch-ctx",
+      "id": "8ed101e1-a30c-4e0f-bca7-020ce841cfb7",
       "name": "MCO: Fetch Context",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1328,
-        400
+        -2240,
+        320
       ]
     },
     {
       "parameters": {
         "jsCode": "\nconst extracted = $('Extract & Filter').first().json;\nconst ctx = $input.first().json;\nreturn [{ json: {\n  ...extracted,\n  context_block:  ctx.context_block  || '(No prior conversation history.)',\n  overall_intent: ctx.overall_intent || 'unknown',\n  lead_name: (ctx.lead && ctx.lead.full_name) || extracted.lead_name\n}}];\n"
       },
-      "id": "n-merge",
+      "id": "f18a3165-ed63-4bd2-b1e9-b74b87819b09",
       "name": "Merge Context",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1600,
-        400
+        -1968,
+        320
       ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://nextus.app.n8n.cloud/webhook/mco-write-event",
+        "url": "https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-write-event",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -116,13 +116,13 @@
           }
         }
       },
-      "id": "n-write-inbound",
+      "id": "bbe7a53a-47a0-406d-bfb2-fa8f0ade0144",
       "name": "MCO: Write Inbound",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1888,
-        400
+        -1680,
+        320
       ]
     },
     {
@@ -142,13 +142,13 @@
         },
         "options": {}
       },
-      "id": "n-classifier",
+      "id": "8c9f6f78-32c1-4d31-b592-9e6dded9eb82",
       "name": "Text Classifier",
       "type": "@n8n/n8n-nodes-langchain.textClassifier",
       "typeVersion": 1.1,
       "position": [
-        2080,
-        368
+        -1488,
+        288
       ]
     },
     {
@@ -160,30 +160,24 @@
         },
         "options": {}
       },
-      "id": "n-openai-classifier",
+      "id": "431e1b7d-26fc-40e5-8f32-fb59adeea451",
       "name": "OpenAI Chat Model",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
-        2160,
-        624
-      ],
-      "credentials": {
-        "openAiApi": {
-          "id": "T1h71eOjG2RI1HDX",
-          "name": "OpenAi account 3"
-        }
-      }
+        -1408,
+        544
+      ]
     },
     {
       "parameters": {},
-      "id": "n-noop",
+      "id": "2ded809c-a154-43cb-8b32-2d4d5cf55a26",
       "name": "No Operation, do nothing",
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        2448,
-        624
+        -1120,
+        544
       ]
     },
     {
@@ -194,13 +188,13 @@
           "systemMessage": "## ROLE\nYou are an AI sales representative for Nextus AI. A lead has replied to our follow-up email. This lead originally engaged through LinkedIn outreach. You have their full cross-channel conversation history (LinkedIn + email) provided in the prompt.\n\n## RULES\n- Output ONLY the reply body text. No subject line. No greeting. No sign-off.\n- Maximum 120 words\n- No bullet points, no asterisks, no formatting\n- Write like a real human: warm, confident, not salesy\n- Do not use our company name. Use: we, us, our team\n- Use the lead's real name naturally in the message\n- No double dashes (—). Use single hyphens if needed\n- Reference the cross-channel history naturally if relevant\n\n## MEETING\nOnly include a meeting link if they show genuine interest:\n\"If you'd like to connect, feel free to grab a time: [your calendar link]\"\n\n## OUTPUT\nReturn ONLY the email body text. Nothing else."
         }
       },
-      "id": "n-reply-agent",
+      "id": "1a87c7a1-cb7a-49e9-bab4-5b501e135223",
       "name": "Reply Agent",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2,
       "position": [
-        2448,
-        208
+        -1120,
+        128
       ],
       "retryOnFail": true,
       "waitBetweenTries": 5000
@@ -214,20 +208,14 @@
         },
         "options": {}
       },
-      "id": "n-anthropic-reply",
+      "id": "00376962-f668-4c15-806a-d5136982ba51",
       "name": "Anthropic Chat Model",
       "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
       "typeVersion": 1.3,
       "position": [
-        2448,
-        400
-      ],
-      "credentials": {
-        "anthropicApi": {
-          "id": "tFYLbQt9S6IzWYNd",
-          "name": "Anthropic account"
-        }
-      }
+        -1120,
+        320
+      ]
     },
     {
       "parameters": {
@@ -247,13 +235,13 @@
           "convertFieldsToString": false
         }
       },
-      "id": "n-kb-reply",
+      "id": "c306783a-8843-46d6-aa5f-1b700cc79fdf",
       "name": "Knowledgebase Agent",
       "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
       "typeVersion": 2.2,
       "position": [
-        2640,
-        400
+        -928,
+        320
       ]
     },
     {
@@ -270,13 +258,13 @@
         },
         "options": {}
       },
-      "id": "n-edit-fields",
+      "id": "209e701d-f3a0-4f93-9fed-5ee3c0b2eb58",
       "name": "Edit Fields",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        2720,
-        208
+        -848,
+        128
       ]
     },
     {
@@ -319,21 +307,15 @@
           "appendAttribution": false
         }
       },
-      "id": "n-slack",
+      "id": "ff484adb-e50f-4529-8519-a3f5fde1387e",
       "name": "Send a message",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.3,
       "position": [
-        3008,
-        208
+        -560,
+        128
       ],
-      "webhookId": "c2d8e4f6-a8b0-4c2e-9f1a-3d5b7e9c1a3f",
-      "credentials": {
-        "slackOAuth2Api": {
-          "id": "eidB94iWe08RnImU",
-          "name": "Slack account"
-        }
-      }
+      "webhookId": "c2d8e4f6-a8b0-4c2e-9f1a-3d5b7e9c1a3f"
     },
     {
       "parameters": {
@@ -387,13 +369,13 @@
         },
         "options": {}
       },
-      "id": "n-switch-approval",
+      "id": "7367c5d4-1890-4bc3-af1c-270b4998b5fe",
       "name": "Switch",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        3280,
-        208
+        -288,
+        128
       ]
     },
     {
@@ -403,30 +385,30 @@
         "emailType": "text",
         "message": "={{ $('Edit Fields').first().json['last copy'] }}",
         "options": {
-          "senderName": "Anik Hanik",
-          "replyTo": "anik@nextus.ai"
+          "senderName": "Flowtics AI",
+          "replyTo": "team@flowticsai.com"
         }
       },
-      "id": "n-send-gmail",
+      "id": "b17106f9-13fa-43e7-86bc-7434714ff2b9",
       "name": "Send Gmail Reply",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        3568,
-        80
+        0,
+        0
       ],
       "webhookId": "90bbf0b5-d673-499e-b116-b579f8a9f006",
       "credentials": {
         "gmailOAuth2": {
-          "id": "hlddPOHSrkIvQo5A",
-          "name": "MCO Email"
+          "id": "IC6TPjXMVxTyn2R9",
+          "name": "Gmail account"
         }
       }
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "https://nextus.app.n8n.cloud/webhook/mco-write-event",
+        "url": "https://n8n-1404.n8n.whiteserverdns.com/webhook/mco-write-event",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -447,37 +429,28 @@
           }
         }
       },
-      "id": "n-write-outbound",
+      "id": "e5823324-f308-4e43-a04a-b63f23dce2e1",
       "name": "MCO: Write Outbound",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3840,
-        80
+        272,
+        0
       ]
     },
     {
-      "id": "n-supabase-check",
-      "name": "Supabase: Check Outbound",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        760,
-        400
-      ],
       "parameters": {
-        "method": "GET",
         "url": "={{ 'https://hkqssbomrcbtfbdowtgj.supabase.co/rest/v1/conversations?lead_email=eq.' + encodeURIComponent($json.lead_email) + '&channel=eq.email&direction=eq.outbound&select=event_id&limit=1' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+              "value": "{{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}"
             },
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrcXNzYm9tcmNidGZiZG93dGdqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Nzg3MTU1MywiZXhwIjoyMDkzNDQ3NTUzfQ.sIW3-eY1IVz1CuErVL9k_2IC9LX1nBS_S9wkT__RgoI"
+              "value": "Bearer {{REPLACE_WITH_SUPABASE_SERVICE_ROLE_KEY}}"
             }
           ]
         },
@@ -488,20 +461,28 @@
             }
           }
         }
-      }
+      },
+      "id": "7b4183cc-4556-45c5-9aa0-370edd9b72bf",
+      "name": "Supabase: Check Outbound",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2816,
+        320
+      ]
     },
     {
-      "id": "n-filter-thread",
+      "parameters": {
+        "jsCode": "\n// Supabase REST returns a JSON array: [] or [{event_id: \"...\"}]\nconst rows = $input.first().json;\nconst arr  = Array.isArray(rows) ? rows : [];\n\nif (arr.length === 0) {\n  // No outbound email to this lead in Supabase — not our follow-up thread\n  return [];\n}\n\n// Our thread confirmed — pass the extracted email data downstream\nreturn [{ json: $('Extract & Filter').first().json }];\n"
+      },
+      "id": "7fb073b7-09ce-4ef3-8fcb-58b6df85e2ad",
       "name": "Filter: Our Thread Only",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1040,
-        400
-      ],
-      "parameters": {
-        "jsCode": "\n// Supabase REST returns a JSON array: [] or [{event_id: \"...\"}]\nconst rows = $input.first().json;\nconst arr  = Array.isArray(rows) ? rows : [];\n\nif (arr.length === 0) {\n  // No outbound email to this lead in Supabase — not our follow-up thread\n  return [];\n}\n\n// Our thread confirmed — pass the extracted email data downstream\nreturn [{ json: $('Extract & Filter').first().json }];\n"
-      }
+        -2528,
+        320
+      ]
     }
   ],
   "connections": {
@@ -652,8 +633,7 @@
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     },
     "Send Gmail Reply": {
@@ -692,33 +672,60 @@
   },
   "settings": {
     "executionOrder": "v1",
-    "callerPolicy": "workflowsFromSameOwner",
-    "errorWorkflow": "nEiTKgedsmFUoDOL",
-    "binaryMode": "separate"
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "callerPolicy": "workflowsFromSameOwner"
   },
   "staticData": null,
   "meta": null,
   "pinData": {},
-  "versionId": "f4f36d44-3402-44d1-975a-91e105701b40",
+  "versionId": "ef2a120a-2e6c-4b49-860e-0a07a69b0ed9",
   "activeVersionId": null,
-  "versionCounter": 4,
+  "versionCounter": 11,
   "triggerCount": 0,
   "shared": [
     {
-      "updatedAt": "2026-05-11T20:18:52.113Z",
-      "createdAt": "2026-05-11T20:18:52.113Z",
+      "updatedAt": "2026-05-12T19:13:06.937Z",
+      "createdAt": "2026-05-12T19:13:06.937Z",
       "role": "workflow:owner",
-      "workflowId": "7pTHnRue85rqTvXk",
-      "projectId": "h75IwkxkzFQqllYm",
+      "workflowId": "mFBOGdMAsXRKD1Pv",
+      "projectId": "gT4zNzvFuk641tgz",
       "project": {
-        "updatedAt": "2025-06-30T19:40:11.857Z",
-        "createdAt": "2025-06-30T17:50:07.677Z",
-        "id": "h75IwkxkzFQqllYm",
-        "name": "Mohammad Imran Hossain Anik <anik@nextus.ai>",
+        "updatedAt": "2026-05-12T14:23:45.440Z",
+        "createdAt": "2026-05-12T11:56:55.020Z",
+        "id": "gT4zNzvFuk641tgz",
+        "name": "Flowtics AI <team@flowticsai.com>",
         "type": "personal",
         "icon": null,
         "description": null,
-        "creatorId": "be90841b-174c-4ea0-b7b4-0aa745ad513b"
+        "creatorId": "82beb348-efd1-4022-9d88-42d9caced284",
+        "projectRelations": [
+          {
+            "updatedAt": "2026-05-12T11:56:55.020Z",
+            "createdAt": "2026-05-12T11:56:55.020Z",
+            "userId": "82beb348-efd1-4022-9d88-42d9caced284",
+            "projectId": "gT4zNzvFuk641tgz",
+            "user": {
+              "updatedAt": "2026-05-16T08:39:07.427Z",
+              "createdAt": "2026-05-12T11:56:54.527Z",
+              "id": "82beb348-efd1-4022-9d88-42d9caced284",
+              "email": "team@flowticsai.com",
+              "firstName": "Flowtics",
+              "lastName": "AI",
+              "personalizationAnswers": null,
+              "settings": {
+                "userActivated": true,
+                "easyAIWorkflowOnboarded": true,
+                "firstSuccessfulWorkflowId": "xE8mFF8HxPaSXNmi",
+                "userActivatedAt": 1778661186636
+              },
+              "disabled": false,
+              "mfaEnabled": false,
+              "lastActiveAt": "2026-05-16",
+              "isPending": false
+            }
+          }
+        ]
       }
     }
   ],
