@@ -34,7 +34,7 @@ These are the URLs other systems call to talk to MCO.
 
 | Table | Purpose | Who writes | Who reads |
 |---|---|---|---|
-| `leads` | One row per lead. Stores name, company, email, LinkedIn, phone, intent, Monday item ID | Write Event (via `upsert_lead` RPC) | Fetch Context (via `fetch_lead_context` RPC) |
+| `leads` | One row per lead. Stores name, company, email, LinkedIn, phone, intent | Write Event (via `upsert_lead` RPC) | Fetch Context (via `fetch_lead_context` RPC) |
 | `conversations` | One row per message, any channel | Write Event (via `insert_conversation_event` RPC) | Fetch Context (via `fetch_lead_context` RPC) |
 | `follow_up_queue` | Scheduled follow-ups waiting to fire | Write Event (when `trigger_cross_channel: true`) | Queue Dispatcher (every 15 min) |
 | `phone_map` | Maps phone numbers to email addresses | Write Event (when `phone_e164` is present) | Retell integration (future) |
@@ -71,19 +71,18 @@ These are called directly by MCO workflows — not raw SQL.
 **What it does, in order:**
 1. Validates and normalises the incoming payload
 2. Calls Supabase `upsert_lead` → creates or updates the lead record with intent promotion
-3. Retrieves the Monday.com item ID for the lead (creates a Monday item if none exists)
-4. Calls Supabase `insert_conversation_event` → logs the message (dedup safe)
-5. If `phone_e164` present → upserts into `phone_map`
-6. Posts an update to the Monday.com item (channel emoji + message content + intent)
-7. Updates Monday.com item columns (overall intent, last active channel)
-8. If `trigger_cross_channel: true` → inserts a row into `follow_up_queue` for each target channel
+3. Calls Supabase `insert_conversation_event` → logs the message (dedup safe)
+4. If `phone_e164` present → upserts into `phone_map`
+5. Queries Notion CRM by `lead_email` → updates the existing lead page or creates a new one
+6. Creates a Notion conversation entry in the CRM (Notion database `362dc227-748f-8184-892a-c6f8f3151b07`)
+7. If `trigger_cross_channel: true` → inserts a row into `follow_up_queue` for each target channel
 
 **Writes to:**
 - Supabase `leads`
 - Supabase `conversations`
 - Supabase `follow_up_queue` (conditional)
 - Supabase `phone_map` (conditional)
-- Monday.com board `18399476470`
+- Notion CRM (lead page + conversation entry)
 
 **Required fields in payload:**
 
@@ -227,6 +226,21 @@ These are called directly by MCO workflows — not raw SQL.
 
 ## External Platform Connections
 
+### Notion (CRM)
+**API Base:** `https://api.notion.com/v1`  
+**Leads database:** `362dc227-748f-8184-892a-c6f8f3151b07`  
+**API token:** stored in the `Notion: Query Lead` node (and sibling nodes) inside Write Event workflow — hardcoded in headers as `Bearer <token>`  
+**Used by:** Write Conversation Event (creates/updates lead pages and conversation entries)  
+
+Notion operations MCO performs:
+
+| Operation | Node | What it does |
+|---|---|---|
+| `POST /databases/:id/query` | `Notion: Query Lead` | Finds the lead's Notion page by email |
+| `PATCH /pages/:id` | `Notion: Update Lead` | Updates existing lead page (name, company, intent, channels) |
+| `POST /pages` | `Notion: Create Lead` | Creates new lead page if not found |
+| `POST /pages` | `Notion: Create Conversation` | Logs the message as a new conversation entry |
+
 ### Retell AI
 **Outbound number:** `+15722124790`  
 **Agent:** `agent_ff863b1414049444c174360809` (Maya — Flowtics AI)  
@@ -308,7 +322,7 @@ Schedule (every 15 min)
 | Service | n8n Credential Name | n8n Credential ID | Used in |
 |---|---|---|---|
 | Supabase service key | Inside each workflow's Setup/Config node | — | All MCO workflows |
-| Monday.com token | Inside Write Event's Setup node | — | Write Event |
+| Notion API token | Hardcoded in Notion nodes inside Write Event | — | Write Event |
 | Anthropic (Claude) | `Anthropic account 2` | `WEpOCYlwQtWIw3jK` | Connection Accepted Handler, Coordinator, Gmail Reply Agent |
 | Aimfox API token | Hardcoded in nodes | — | Connection Accepted Handler, Coordinator |
 | Gmail OAuth2 | `Gmail account` | `IC6TPjXMVxTyn2R9` | Coordinator, Gmail Reply Agent |

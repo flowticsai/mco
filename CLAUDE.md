@@ -152,7 +152,7 @@ SETUP.md            # Phase-by-phase infrastructure setup guide
 .tmp/               # Disposable intermediate files (Python patch scripts, JSON payloads)
 ```
 
-**Deliverables go to cloud services** (n8n, Supabase, Monday.com, Google Sheets). Everything in `.tmp/` is regenerable and disposable.
+**Deliverables go to cloud services** (n8n, Supabase, Notion, Google Sheets). Everything in `.tmp/` is regenerable and disposable.
 
 ---
 
