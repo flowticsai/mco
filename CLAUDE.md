@@ -98,7 +98,7 @@ Post Call:     https://n8n-1404.n8n.whiteserverdns.com/webhook/9cdd28e8-7cfd-476
 ```
 
 ### External Services
-- **Aimfox API** `https://api.aimfox.com/api/v2` — LinkedIn messaging. Token stored in workflow nodes. Campaign ID for new connections: `39a3ee2f-8474-4e9a-b498-81d14e319788`.
+- **Aimfox API** `https://api.aimfox.com/api/v2` — LinkedIn messaging. Token stored in workflow nodes. Campaign ID for new connections: `6e2feb86-b9c6-4c18-87fa-c5fe5e41682f`.
 - **Gmail** `team@flowticsai.com` (sender name: `Flowtics AI`) — n8n credential `Gmail account` (ID `IC6TPjXMVxTyn2R9`). Used by Coordinator and Gmail Reply Agent.
 - **Anthropic** n8n credential `Anthropic account 2` (ID `WEpOCYlwQtWIw3jK`), model: `claude-sonnet-4-5-20250929`. Used by Coordinator (email + LinkedIn AI), Gmail Reply Agent.
 - **Retell AI** — outbound calls from `+15722124790`, agent `agent_ff863b1414049444c174360809` (Maya - Flowtics AI). Booking link: `https://calendly.com/mahfujurrahman511351/30min`. `queue_id` is passed to Retell in call metadata so Post Call Analysis can re-queue unanswered calls.

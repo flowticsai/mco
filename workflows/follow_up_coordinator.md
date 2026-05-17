@@ -63,7 +63,7 @@ Send a follow-up message to a lead on a specified channel. Fetches cross-channel
    11. After Send → Log → Mark Queue Sent → Return OK
 
    **NO — no connection yet (email-sourced lead without LinkedIn connection):**
-   7. **Add to LinkedIn Campaign** — `POST Aimfox /accounts/:id/campaigns/39a3ee2f-8474-4e9a-b498-81d14e319788/leads`
+   7. **Add to LinkedIn Campaign** — `POST Aimfox /accounts/:id/campaigns/6e2feb86-b9c6-4c18-87fa-c5fe5e41682f/leads`
       - Sends Aimfox connection request on behalf of the account
    8. **Log Connection Request** — `POST /mco-write-event`
       - channel: `linkedin`, direction: `outbound`

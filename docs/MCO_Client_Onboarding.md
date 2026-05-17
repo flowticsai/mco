@@ -35,7 +35,7 @@ These are the variables to create. Every workflow reads from `$vars.*` — chang
 | `company_name` | Client's company name, used in AI prompts | `Flowtics AI` |
 | `booking_link` | Calendly or meeting link injected into AI replies | `https://calendly.com/mahfujurrahman511351/30min` |
 | `ai_tone` | Tone instruction injected into all AI system prompts | `professional, concise, consultative` |
-| `linkedin_campaign_id` | Aimfox campaign ID for connection requests | `39a3ee2f-8474-4e9a-b498-81d14e319788` |
+| `linkedin_campaign_id` | Aimfox campaign ID for connection requests | `6e2feb86-b9c6-4c18-87fa-c5fe5e41682f` |
 | `aimfox_account_id` | Aimfox account sending LinkedIn messages | *(from Aimfox dashboard)* |
 | `linkedin_delay_hours` | Hours before first LinkedIn follow-up after connection | `24` |
 | `voice_retry_delay_hours` | Hours before retry if call not answered | `4` |

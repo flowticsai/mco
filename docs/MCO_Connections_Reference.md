@@ -141,7 +141,7 @@ Never implement intent promotion in n8n Code nodes — always goes through `upse
     - Reply to Existing Conversation — `POST Aimfox /accounts/:id/conversations/:urn/messages`
     - After Send → Log to Supabase → Mark Queue Sent → Return OK
   - **NO** (not yet connected — email-sourced lead):
-    - Add to LinkedIn Campaign — `POST Aimfox /accounts/:id/campaigns/39a3ee2f-8474-4e9a-b498-81d14e319788/leads`
+    - Add to LinkedIn Campaign — `POST Aimfox /accounts/:id/campaigns/6e2feb86-b9c6-4c18-87fa-c5fe5e41682f/leads`
     - Log Connection Request — `POST /mco-write-event` (channel=linkedin, content="Connection request sent via Aimfox campaign", intent=no_action)
     - Mark Queue Skipped — `PATCH follow_up_queue` status=skipped
     - Return OK (Campaign) — separate 200, does NOT go through After Send
@@ -273,8 +273,8 @@ Never implement intent promotion in n8n Code nodes — always goes through `upse
 
 ### Aimfox
 **API Base:** `https://api.aimfox.com/api/v2`  
-**Token:** `Bearer 8e65df8c-3fe2-4ecf-bf05-8261ea85464b` (hardcoded in workflow nodes)  
-**Campaign ID (new connections):** `39a3ee2f-8474-4e9a-b498-81d14e319788`
+**Token:** `Bearer e5cc0625-fe79-4bb8-b816-f23f80bbdbb6` (hardcoded in workflow nodes)  
+**Campaign ID (new connections):** `6e2feb86-b9c6-4c18-87fa-c5fe5e41682f`
 
 | Endpoint | Used by | Purpose |
 |---|---|---|
