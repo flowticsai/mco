@@ -45,6 +45,7 @@ When a LinkedIn connection is accepted: send a fixed "thanks for connecting" ope
    - `lead_email`: from Write Event response
    - `target_channel: "linkedin"`, `status: "pending"`
    - `scheduled_for: NOW() + 24h`
+   - `trigger_event_id`: `log_event_id` from `Extract Conversation URN` — satisfies FK constraint to `conversations.event_id`
    - `follow_up_context` (JSON string): references `$('Extract Conversation URN').first().json` for:
      - `conversation_urn` — the LinkedIn thread URN
      - `aimfox_account_id` — account_id from the Aimfox webhook
@@ -67,4 +68,4 @@ When the Dispatcher fires and picks up that queue row, it calls the Coordinator.
 - `conversation_urn` is extracted from the Aimfox Send Thanks Message response (step 5). The `Queue LinkedIn Follow-Up` node (step 8) reads this from the `Extract Conversation URN` node directly — NOT from `$json` which at that point is the Write Event HTTP response.
 - `aimfox_account_id` similarly must be read from `$('Extract Conversation URN').first().json.account_id`, not from `$json`.
 - The 24h delay is set in `Queue LinkedIn Follow-Up`. Adjust `Date.now() + 24*60*60*1000` if a different interval is needed.
-- The Dispatcher's `Fetch LinkedIn Meta` also looks up `aimfox_account_id` from the conversations table as a backup, using the metadata stored in step 7.
+- The Dispatcher reads `aimfox_account_id` and `conversation_urn` directly from `follow_up_context` JSON — no separate lookup node needed.

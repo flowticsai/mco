@@ -57,10 +57,11 @@ Send a follow-up message to a lead on a specified channel. Fetches cross-channel
 
    **YES — existing conversation (connected lead, has DM thread):**
    7. **LinkedIn: Claude Model** — Anthropic
-   8. **LinkedIn: Generate Message** — LLM chain
-   9. **LinkedIn: Extract Message** — Code node
+   8. **LinkedIn: Generate Message** — LLM chain (null-safe: `trigger_channel` falls back to `'PROACTIVE'` if null)
+   9. **LinkedIn: Extract Message** — Code node, outputs `generated_message`
    10. **Reply to Existing Conversation** — `POST Aimfox /accounts/:aimfox_account_id/conversations/:conversation_urn`
-       - Body: `{ message: generated_message }` — note NO `/messages` suffix
+       - Body: `{ message: $('LinkedIn: Extract Message').first().json.generated_message }` — NO `/messages` suffix
+       - `neverError: true` — check output JSON for `status: "fail"` if DM seems not delivered
    11. After Send → Log → Mark Queue Sent → Return OK
 
    **NO — no connection yet (email-sourced lead without LinkedIn connection):**
@@ -83,9 +84,9 @@ Send a follow-up message to a lead on a specified channel. Fetches cross-channel
 8. After Send → Log → Mark Queue Sent → Return OK
 
 ### Shared tail (email + LinkedIn DM + voice)
-- **After Send** — Code node, normalises `send_status`
-- **Log to Supabase** — `POST /mco-write-event` with `lead_id`, `lead_email`, channel, `generated_message`
-- **Mark Queue Sent** — `PATCH Supabase follow_up_queue`, status: `sent` (or `skipped` if send_status=skipped)
+- **After Send** — Code node. Spreads the send API response, adds `send_status: 'sent'`, and picks up `generated_message` via try-catch from whichever Extract Message node ran (LinkedIn → Email → Voice). This is how `generated_message` survives past the HTTP response that overwrites `$json`.
+- **Log to Supabase** — `POST /mco-write-event`. Uses `$json.generated_message` (from After Send) as `content`. Also passes `linkedin_urn` + `linkedin_profile_url` from Merge Context so Write Event can resolve LinkedIn-only leads (no email).
+- **Mark Queue Sent** — `PATCH Supabase follow_up_queue`, status: `sent`. All header fields (`apikey`, `Authorization`) reference `$('Merge Context').first().json.SUPABASE_KEY` — NOT `$json.SUPABASE_KEY` which is overwritten by the HTTP response.
 - **Return OK** — 200 response
 
 ## Key Design Decisions
