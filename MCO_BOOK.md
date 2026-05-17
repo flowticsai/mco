@@ -526,7 +526,7 @@ Unified Input (normalise data shape)
 
 **Node sequence after Unified Input:**
 
-5. **Fetch Lead Record** — Supabase REST, fetches lead by `lead_email`. Returns `full_name`, `company`, `phone_e164`, `overall_intent`.
+5. **Fetch Lead Record** — Supabase REST, fetches lead by `lead_id` (always present in Unified Input). Returns `lead_id`, `lead_email`, `full_name`, `company`, `phone_e164`, `overall_intent`. Using `lead_id` means LinkedIn-only leads (no email) are resolved correctly — previously a missing email caused this lookup to return empty, leaving `full_name` and `company` blank for the GPT-4o-mini summary.
 6. **POST /mco-fetch-context** — gets last 20 cross-channel conversations for the lead.
 7. **Build OpenAI Request** — assembles prompt for GPT-4o-mini.
 8. **Summarize Prior Conversation** — OpenAI `gpt-4o-mini`, generates a ≤180-word prior conversation brief. This is what Maya (the Retell agent) reads before the call to know what's been discussed.

@@ -33,8 +33,9 @@ Webhook only. One execution per lead. If multiple leads need to be called at the
    - Reads `lead_email`, `lead_id`, `phone_e164`, `queue_id`, `target_channel`, `trigger_channel`, `follow_up_context`, `triggered_by_coordinator` from body
 3. **Unified Input** — Code node, normalises data shape:
    - `lead_email`, `lead_id`, `phone_e164`, `queue_id`, `target_channel`, `trigger_channel`, `follow_up_context`, `triggered_by_coordinator`
-4. **Fetch Lead Record** — Supabase REST, fetches lead by `lead_email`
-   - Returns: `full_name`, `company`, `phone_e164`, `overall_intent`
+4. **Fetch Lead Record** — Supabase REST, fetches lead by `lead_id` (from Unified Input)
+   - Returns: `lead_id`, `lead_email`, `full_name`, `company`, `phone_e164`, `overall_intent`
+   - Uses `lead_id` not `lead_email` — works for LinkedIn-only leads with no email
 5. **POST /mco-fetch-context** — fetches last 20 conversations for the lead
 6. **Build OpenAI Request** — Code node, assembles a prompt from context for GPT-4o-mini
 7. **Summarize Prior Conversation** — OpenAI `gpt-4o-mini`, ≤180-word prior conversation brief
