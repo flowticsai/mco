@@ -183,6 +183,7 @@ The dispatch backlog. Every pending cross-channel follow-up lives here.
 | `scheduled_for` | timestamp | When to send. Set to `NOW() + delay` on insert. |
 | `follow_up_context` | text (JSON string) | Channel-specific context: `conversation_urn`, `aimfox_account_id`, `linkedin_urn`, `linkedin_profile_url`. Parsed by Dispatcher's Split Rows node. |
 | `trigger_event_id` | UUID FK → conversations.event_id | The conversation event that triggered this queue row. NOT NULL — must be a valid event UUID. |
+| `outcome` | text | Written by Post Call Analysis after the call ends. Values: `answered`, `voicemail`, `no_answer`, `failed`. Null until the call completes. Links the queue row to its call result without changing `status`. |
 | `created_at` | timestamp | When this row was inserted. |
 
 **Key rule:** `trigger_event_id` has a FK constraint to `conversations.event_id`. You cannot insert a queue row with a `trigger_event_id` that doesn't exist in conversations. Always write the conversation event first, then insert the queue row using that event's ID.
@@ -555,15 +556,21 @@ Receives Retell's post-call webhook, logs the call to Supabase, and handles retr
 
 1. **Webhook** — receives Retell `call_analyzed` event
 2. **Extract Call Data** — Code node, parses `call_id`, `transcript`, `summary`, `disconnection_reason`, `queue_id` (from Retell metadata), `lead_email`, `duration`
-3. **Write Call to Supabase** — `POST /mco-write-event` with `channel: "voice"`, `direction: "outbound"`, `content: summary/transcript`, `intent` from Retell's analysis
+3. **Write Call to Supabase** — `POST /mco-write-event` with `channel: "voice"`, `direction: "outbound"`, `content: summary/transcript`, `intent` from Retell's analysis. Metadata includes `queue_id` and `disconnection_reason` so the conversation row is traceable back to the queue row.
 4. **Check Retry** — Code node, checks `disconnection_reason` against unanswered set: `dial_no_answer`, `voicemail`, `dial_failed`, `busy`
-5. **Needs Retry?** — IF node
+5. **Write Call Outcome** — PATCH `follow_up_queue` row with `outcome` field:
+   - `answered` — call was picked up
+   - `voicemail` — hit voicemail
+   - `no_answer` — rang out or busy
+   - `failed` — `dial_failed`
+   - `neverError: true` — if `queue_id` is missing or PATCH fails, workflow continues
+6. **Needs Retry?** — IF node
    - YES → **Re-Queue Voice Call** — inserts new `follow_up_queue` row with `status=pending`, `scheduled_for=NOW()+4h`, `target_channel=voice`
    - NO → stop (answered call, original queue row is already `sent`)
 
 **Why the original queue row is marked `sent` before the call is answered:** the Call Agent marks the queue row `sent` as soon as Retell confirms the call was initiated (not answered). This is correct — the row represents "did we attempt to call?" not "did they answer?". If they don't answer, Post Call Analysis creates a *new* queue row for the retry. The retry is a fresh attempt, not a resurrection of the old row.
 
-**The `queue_id` handoff:** the Call Agent embeds `queue_id` in Retell's call metadata. Retell echoes this back in the `call_analyzed` webhook. Post Call Analysis reads it from `$json.metadata.queue_id`. This is the only way Post Call Analysis knows which queue row was associated with this call.
+**The `queue_id` handoff:** the Call Agent embeds `queue_id` in Retell's call metadata. Retell echoes this back in the `call_analyzed` webhook. Post Call Analysis reads it from `$json.metadata.queue_id`. This is how Post Call Analysis knows which queue row to write the `outcome` back to, and which row to check for re-queuing.
 
 ---
 

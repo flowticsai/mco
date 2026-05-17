@@ -60,8 +60,9 @@ Webhook only. One execution per lead. If multiple leads need to be called at the
 
 Retell fires `call_analyzed` to Post Call Analysis (`r8XKHCnL4vju2E4j`) when the call ends. Post Call Analysis:
 - Logs the call transcript/summary to Supabase via Write Event
+- Writes `outcome` to the original `follow_up_queue` row: `answered`, `voicemail`, `no_answer`, or `failed`
 - If not answered (`dial_no_answer`, `voicemail`, `dial_failed`, `busy`) → re-queues a new voice row 4 hours later
-- If answered → no re-queue; the original queue row is already `sent`
+- If answered → no re-queue; the original queue row is already `sent` with `outcome: answered`
 
 ## Key Design Notes
 
