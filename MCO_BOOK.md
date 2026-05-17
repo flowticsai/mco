@@ -94,7 +94,8 @@ n8n is the automation engine. All business logic lives in n8n workflows. Supabas
 
 ### Supabase
 **URL:** `https://hkqssbomrcbtfbdowtgj.supabase.co`  
-**Auth:** service role key (stored in each workflow's Config/Setup node and in `.env`)
+**Auth:** service role key (stored in each workflow's Config/Setup node and in `.env`)  
+**Fresh setup:** run `tools/schema.sql` in the Supabase SQL Editor — single idempotent script that builds all tables, indexes, RLS, and RPCs from scratch.
 
 Supabase is the single source of truth. All reads and writes go through Postgres RPCs (not raw SQL from n8n) so the business logic lives in the database, not scattered across workflows.
 
@@ -912,6 +913,28 @@ Every bug in this section taught us something about n8n, Aimfox, or the system's
 **Bug:** `Setup & Validate` checked for `lead_email`, `linkedin_profile_url`, `linkedin_urn`, `phone_e164` — but not `lead_id`. LinkedIn-only leads passed only `lead_id` from the Coordinator → Write Event returned 400 "At least one identifier required".  
 **Fix:** added `hasLeadId` check to the validation block.  
 **Lesson:** `lead_id` is a valid identifier. Any new validation that checks "do we know who this lead is?" should include all five identifier types.
+
+---
+
+### Double `Mark Queue Sent` on voice webhook path (Call Agent + Coordinator)
+**Bug:** when the Coordinator triggered the Call Agent via webhook, both workflows marked the same `queue_id` as `sent` — the Coordinator immediately after firing the webhook, and the Call Agent after the Retell call was placed. Harmless now but would corrupt any future call-count or retry-limit logic.  
+**Fix:** Coordinator passes `triggered_by_coordinator: true` in the webhook body. Call Agent's new `Skip Mark Queue?` IF node checks this flag — if true, skips its own `Mark Queue Sent`. If false (direct webhook call), runs it as a fallback.  
+**Lesson:** when two workflows share ownership of the same state write, decide explicitly which one owns it and use a flag to prevent the other from double-writing.
+
+### Call Agent 4h schedule trigger (Call Agent)
+**Bug:** the Call Agent had a schedule trigger that fired every 4 hours, fetching all pending voice rows from the queue and calling them in batch. This conflicted with the Coordinator's on-demand webhook trigger — the same lead could be called by the schedule and the webhook simultaneously.  
+**Fix:** removed the schedule trigger, `Supabase: Get Pending Voice Follow-Ups`, and `Loop One Lead at a Time` nodes entirely. The Call Agent is now webhook-only. Multiple simultaneous calls are handled by n8n running parallel executions.  
+**Lesson:** don't give a workflow two entry paths if one of them can conflict with the other. Explicit is better than scheduled.
+
+### `Fetch Lead Record` used `lead_email` as lookup (Call Agent)
+**Bug:** `Fetch Lead Record` queried Supabase by `lead_email`. For LinkedIn-only leads (no email), this returned empty — `full_name` and `company` were blank, so GPT-4o-mini generated a call summary with no context about who the lead was. Maya called the lead without knowing their name or company.  
+**Fix:** changed query filter from `lead_email=eq.{email}` to `lead_id=eq.{lead_id}`. `lead_id` is always present in `Unified Input`.  
+**Lesson:** always use `lead_id` as the primary lookup identifier. It's always available and works for every lead type. `lead_email` is optional and can be null.
+
+### No call outcome recorded on `follow_up_queue` (Post Call Analysis)
+**Bug:** after a call, the original `follow_up_queue` row stayed frozen at `status=sent` with no record of what happened. There was no link between the queue row and the call outcome — you couldn't query "how many calls were answered?" from the queue table.  
+**Fix:** added `outcome` column (`text`, nullable) to `follow_up_queue`. Post Call Analysis now PATCHes the original queue row with `outcome=answered/voicemail/no_answer/failed` after every call. Also added `queue_id` and `disconnection_reason` to the conversation row metadata so the two records are traceable to each other.  
+**Lesson:** status and outcome are different things. `status` tracks dispatch state (pending → sent). `outcome` tracks what actually happened after dispatch. They belong in separate columns.
 
 ---
 
