@@ -1,306 +1,216 @@
 # MCO System — Plain English Guide
 ### What it is, how it works, and why we built it this way
+**Last updated:** 2026-05-17 (synced to live system)
 
 ---
 
-## The Problem We Were Solving
+## The Problem We're Solving
 
-Before this system, every channel your team uses to reach leads — LinkedIn, email, phone calls — worked in complete isolation.
+Without MCO, every channel works in isolation. A lead might accept a LinkedIn connection request, reply to a follow-up email three days later, then receive an AI voice call that re-introduces the product they already said they're interested in. Each agent starts from scratch every time.
 
-If someone replied to your LinkedIn message on Monday, and then replied to one of your emails on Wednesday, the AI agent replying to the email had no idea about the LinkedIn conversation. It was starting from scratch every time. That makes your outreach feel robotic and disconnected.
-
-The MCO system is the connective tissue. It gives every channel a shared memory, so your AI agents always know the full history of a lead — regardless of where the conversation started.
+MCO is the connective tissue. It gives every channel a shared memory, so every agent — whether it's generating a LinkedIn DM, an email reply, or briefing a voice agent before a call — always knows the full cross-channel history of that lead before it responds.
 
 ---
 
-## Think of It Like a Reception Desk
+## The Core Rule
 
-Imagine your business has a reception desk that:
-- Keeps a record every time anyone speaks to a lead, on any channel
-- Can instantly pull up that lead's full history when anyone needs it
-- Automatically schedules follow-ups across the right channels at the right time
-- Makes sure no lead falls through the cracks
+**The system should always be the last to send.**
 
-That reception desk is the MCO system.
+- If the lead replies to something → the relevant Reply Agent handles it (reactive path)
+- If the lead hasn't replied and time has passed → the Coordinator fires a follow-up (proactive path)
 
----
-
-## The Two Types of Leads
-
-Everything in the system flows differently depending on where the lead first came from.
-
-### Lead Source: LinkedIn (Aimfox)
-Someone responded to one of your LinkedIn outreach messages. You already have a conversation going with them on LinkedIn inside Aimfox.
-
-### Lead Source: Email (ByZone)
-Someone responded to one of your cold outreach emails sent via ByZone. You have their email address but you may not know their LinkedIn profile yet.
-
-The system handles both, but the path is slightly different for each — explained below.
+These two paths never overlap. When a lead responds, Write Conversation Event automatically cancels any pending follow-ups so the Coordinator doesn't send a duplicate.
 
 ---
 
-## The Building Blocks
-
-Think of the system as having four layers:
+## The Three Paths
 
 ```
-┌─────────────────────────────────────────────────┐
-│  YOUR EXISTING WORKFLOWS                        │
-│  (Aimfox Reply Agent, Outcraft Reply Agent)     │
-│  These handle the actual conversations          │
-└─────────────────────────────────────────────────┘
-                      ↕
-┌─────────────────────────────────────────────────┐
-│  MCO WORKFLOWS                                  │
-│  The connective tissue — log, recall, follow up │
-└─────────────────────────────────────────────────┘
-                      ↕
-┌─────────────────────────────────────────────────┐
-│  SUPABASE (The Database)                        │
-│  The shared memory — stores everything          │
-└─────────────────────────────────────────────────┘
-                      ↕
-┌─────────────────────────────────────────────────┐
-│  DELIVERY PLATFORMS                             │
-│  Gmail · Aimfox · Monday.com                   │
-└─────────────────────────────────────────────────┘
+WRITE PATH      Every interaction → POST /mco-write-event → Supabase + Notion
+READ PATH       Before any AI reply → POST /mco-fetch-context → full cross-channel context
+DISPATCH PATH   Lead goes quiet → Dispatcher (every 15 min) → Coordinator → send
 ```
 
 ---
 
-## Layer 1: Your Existing Workflows
+## The Workflows
 
-These are the workflows you already built and use daily. We have not touched them.
+### Core Infrastructure (always running)
 
-### Aimfox Nextus AI Reply Agent
-Handles all LinkedIn conversations. When a lead replies on LinkedIn, this workflow reads the message, decides what to say, and sends a reply — all automatically.
+**Write Conversation Event**  
+The single write path for the entire system. Every message sent or received — on any channel — is recorded here. It updates Supabase (lead record + conversation history), updates Notion CRM, and optionally queues a cross-channel follow-up.
 
-### Outcraft Reply Agent
-Handles incoming email replies. When someone replies to a cold outreach email via ByZone, this workflow reads it and sends an AI-written response.
+**Fetch Cross-Channel Context**  
+Called before any AI generates a reply. Returns a formatted summary of everything that's ever happened with a lead — every email, LinkedIn message, voice call — so the AI can reply like someone who's been paying attention.
 
-### Outcraft Followup Agent
-Handles email follow-ups. If a lead showed interest but went quiet, this workflow sends a follow-up email after a set number of days.
+**FollowUp Queue Dispatcher**  
+Checks Supabase every 15 minutes for follow-ups that are due. When it finds one, it hands it to the Coordinator. It also fetches Aimfox account metadata for LinkedIn follow-ups so the Coordinator has what it needs.
 
-**What you will add to these** (a few small nodes — instructions provided separately):
-- A call to log the conversation to the shared database
-- A call to fetch the lead's full history before the AI replies
-
----
-
-## Layer 2: The MCO Workflows
-
-These are the five workflows we built. Each has one specific job.
+**Centralized Follow-Up Coordinator**  
+The proactive outreach engine. When the Dispatcher triggers it, it fetches full context, generates an AI message, and routes to the right channel:
+- **Email** → Claude generates message → Gmail sends from `team@flowticsai.com`
+- **LinkedIn** → checks if a conversation thread exists (has `conversation_urn`):
+  - Yes (connected) → Claude generates message → Aimfox replies inside the existing thread
+  - No (not connected) → Adds lead to Aimfox campaign (sends connection request) → marks queue skipped → stops
+- **Voice** → triggers Call Agent webhook → Call Agent handles Retell call
 
 ---
 
-### 1. Write Conversation Event
-**Job:** Log every message to the shared database.
+### LinkedIn Pipeline
 
-Every time a lead sends or receives a message on any channel, this workflow is called. It records:
-- Who the lead is
-- What channel (LinkedIn, email, phone, SMS)
-- What was said
-- What their intent seems to be (interested, not interested, wants to book, etc.)
-- When it happened
+**Aimfox Connection Accepted Handler**  
+When a LinkedIn connection is accepted, Aimfox fires this webhook. It:
+1. Sends a fixed "great to connect" message immediately (no AI — warm and personal by design)
+2. Logs the message + stores `conversation_urn` on the lead record (critical — this is how the Coordinator knows it can DM this lead)
+3. Queues a 24-hour follow-up so the Coordinator can continue the conversation the next day
 
-It also updates Monday.com automatically so your pipeline stays current.
+**Aimfox Nextus AI Reply Agent — MCO**  
+Handles inbound LinkedIn replies. Uses Google Sheets to decide whether to reply (are we the last to send?). Uses Claude/Gemini to generate responses. When a lead shows genuine interest, writes events to MCO/Supabase. This is the reactive path — it only fires when the lead sends a message.
 
-Think of it as the person at the reception desk writing notes after every call or meeting.
-
-**It also decides:** If a lead shows strong interest on one channel, it schedules a follow-up on a different channel. For example — if someone says "I'm interested" on LinkedIn, it schedules an email follow-up.
+**MCO - Aimfox Responded**  
+When Aimfox detects that a lead has responded to a campaign message, this marks an Aimfox label (internal Aimfox state tracking). By design, it does not write to Supabase — the Reply Agent handles the actual response and any Supabase writes.
 
 ---
 
-### 2. Fetch Cross-Channel Context
-**Job:** Pull up a lead's full history before anyone replies to them.
+### Email Pipeline
 
-Before your AI agent writes a reply on any channel, it calls this workflow first. This workflow looks up everything that has ever happened with that lead — every email, every LinkedIn message, every call — and hands it back as a summary.
-
-The AI agent uses that summary to write a reply that feels informed and personal, not generic.
-
-Think of it as briefing your salesperson before they pick up the phone: "Here's everything we know about this person so far."
-
----
-
-### 3. FollowUp Queue Dispatcher
-**Job:** Check every 15 minutes if any follow-ups are due and trigger them.
-
-When Write Conversation Event schedules a follow-up (say, email in 3 days), it adds it to a waiting list in the database. The Dispatcher checks that list every 15 minutes.
-
-When a follow-up is due, the Dispatcher picks it up and hands it to the Coordinator to handle.
-
-Think of it as an alarm clock that fires reminders when scheduled follow-ups are ready to go.
-
-**Why not just trigger it immediately?**
-Because follow-ups are time-delayed by design. You don't want to email someone the same second they message you on LinkedIn. The queue lets you schedule "send this in 3 days" reliably — and it survives crashes, restarts, and outages because the schedule lives in the database, not in memory.
+**MCO - Gmail Reply Agent**  
+When an email arrives at `team@flowticsai.com`, this workflow fires. It:
+1. Fetches full cross-channel context (knows about LinkedIn messages, prior calls, everything)
+2. Logs the inbound email to Supabase
+3. Classifies intent
+4. Generates an AI reply using all available context
+5. Sends the reply from `team@flowticsai.com`
+6. Logs the outbound reply to Supabase
 
 ---
 
-### 4. Centralized Follow-Up Coordinator
-**Job:** Write and send cross-channel follow-up messages.
+### Voice Pipeline
 
-When the Dispatcher says "this follow-up is due," the Coordinator takes over. It:
+**Flowtics AI Call Agent — MCO**  
+Runs every 4 hours on schedule AND accepts on-demand webhook triggers. For each pending voice follow-up:
+1. Fetches the lead record and full conversation context
+2. Uses GPT-4o-mini to summarise the context into a ≤180-word brief for the voice agent
+3. Fires a Retell outbound call from `+15722124790` (agent: Maya — Flowtics AI)
+4. Passes `queue_id` in the call metadata so Post Call Analysis can track it
 
-1. Fetches the lead's full conversation history from the database
-2. Sends that history to Claude (AI) with a channel-specific prompt
-3. Claude writes a follow-up message tuned for that channel
-4. The message is sent via the right platform:
-   - **Email** → sent via Gmail (anik@nextus.ai)
-   - **LinkedIn** → sent via Aimfox
-5. The sent message is logged back to the database
-6. The queue row is marked as done
-
-**Why different prompts per channel?**
-A LinkedIn message and an email read completely differently. LinkedIn should be short, casual, conversational — 80 words max. Email can be a bit longer and more structured. Using the same prompt for both would produce mediocre results on both. Each channel has its own Claude prompt tuned for that format.
+**Post Call Analysis — MCO**  
+Retell fires this after every call. It:
+1. Logs the call transcript/summary to Supabase via Write Event
+2. Checks if the call was answered (`disconnection_reason`)
+3. If not answered (voicemail, no answer, busy) → automatically re-queues a new voice follow-up 4 hours later
 
 ---
 
-### 5. Connection Accepted Handler
-**Job:** Send a personalized first message the moment a lead accepts a LinkedIn connection request.
+### Data & Utilities
 
-This is specific to email-sourced leads that were added to an Aimfox LinkedIn campaign.
-
-When a lead accepts the connection request:
-1. Aimfox fires a signal to this workflow immediately
-2. The workflow fetches the lead's full email history from the database
-3. Claude writes a warm, context-aware first LinkedIn message
-4. The message is sent right away via Aimfox
-5. Everything is logged back to the database
-
-Think of it as someone accepting your business card, and you immediately following up with a personal note referencing the conversation you already had with them over email.
+**Aimfox Data Fetching MCO**  
+Fetches lead data from Aimfox and writes it to Google Sheets. Separate from the outreach pipeline — used for reporting and enrichment.
 
 ---
 
-## Layer 3: Supabase (The Database)
+## The Data Store (Supabase)
 
-Supabase is where all the shared memory lives. It has four tables:
+**leads** — One row per lead. The canonical identity record. A lead is identified by any of: UUID `lead_id`, `lead_email`, `linkedin_profile_url`, `linkedin_urn`, or `phone_e164`. Stores `linkedin_conversation_urn` — the Coordinator reads this to know whether it can DM or must send a connection request first.
 
-### leads
-One row per lead. Stores everything we know about them:
-- Email address (the universal ID — every lead has one)
-- Full name, company
-- LinkedIn profile URL
-- Phone number
-- Which channel they came from first
-- Their overall intent (interested, booked, not interested, etc.)
-- Monday.com item ID
+**conversations** — One row per message, any channel. This is what Fetch Context reads to build the history summary. Deduplication on `event_id` means it's safe to call Write Event multiple times for the same message.
 
-### conversations
-One row per message. Every single message sent or received on any channel gets a row here:
-- Which lead it belongs to
-- Which channel (email, LinkedIn, voice, SMS)
-- Whether it was inbound or outbound
-- The message content
-- The intent detected in that message
-- When it happened
+**follow_up_queue** — The waiting list. Each row has a `target_channel`, `scheduled_for`, and `status` (pending / sent / skipped / failed). The Dispatcher reads this every 15 minutes.
 
-This is what Fetch Context reads when building the history summary.
-
-### follow_up_queue
-The waiting list. Every scheduled follow-up gets a row here:
-- Which lead
-- Which channel to follow up on
-- When to send it
-- Status (pending, sent, skipped, failed)
-
-The Dispatcher reads this table every 15 minutes.
-
-### phone_map
-Maps phone numbers to email addresses. Used for voice and SMS channels — since those only know a phone number, this table is how we find the right lead in the database.
+**phone_map** — Maps phone numbers to leads. Used when Retell fires a call and we need to find the lead by their phone number.
 
 ---
 
-## Layer 4: Delivery Platforms
+## The Two Lead Journeys
 
-### Gmail (anik@nextus.ai)
-Used for all warm follow-up emails. This is your personal/work email, not a cold outreach inbox. When the Coordinator sends an email follow-up, it comes from here.
-
-### Aimfox API
-Used for all LinkedIn messages. Aimfox is the bridge between our automation and LinkedIn — since LinkedIn has no public messaging API, Aimfox handles sending and receiving on our behalf.
-
-### Monday.com
-Used for pipeline tracking only. Every time a conversation is logged, the lead's Monday.com item is updated with the latest message and intent. This keeps your pipeline visible without any manual updates.
-
----
-
-## The Two Full Flows
-
-### Flow A: Lead comes from LinkedIn
+### Journey A: Lead comes from LinkedIn (Aimfox)
 
 ```
-Lead replies on LinkedIn
-        ↓
-Aimfox Nextus AI Reply Agent handles it
-        ↓
-[you add] → Fetch full history from database
-        ↓
-AI writes an informed reply → sent on LinkedIn
-        ↓
-[you add] → Log this conversation to database
-        ↓
-If lead says "I'm interested":
-  → Schedule an email follow-up in X days
-        ↓
-X days later → Queue Dispatcher picks it up
-        ↓
-Follow-Up Coordinator:
-  - Fetches full LinkedIn + any other history
-  - Claude writes a warm email (email prompt)
-  - Sends via Gmail (anik@nextus.ai)
-  - Logs sent email to database
+Lead accepts connection request
+  -> Connection Accepted Handler
+      -> Send fixed thanks message immediately
+      -> Store conversation_urn on lead record
+      -> Queue 24h follow-up
+
+24 hours later -> Dispatcher fires -> Coordinator
+  -> Has conversation_urn? YES
+  -> Claude generates LinkedIn DM
+  -> Aimfox replies inside existing thread
+  -> Logged to Supabase
+
+Lead replies to that DM
+  -> Aimfox Reply Agent fires (reactive)
+  -> Google Sheets: should we reply? Yes (lead replied)
+  -> Claude/Gemini generates response
+  -> Aimfox sends reply
+  -> [if interested] Written to Supabase
+  -> Write Event cancels any pending follow-ups
 ```
 
----
-
-### Flow B: Lead comes from Email (ByZone)
+### Journey B: Lead comes from Email
 
 ```
 Lead replies to cold email
-        ↓
-Outcraft Reply Agent handles it
-        ↓
-[you add] → Log this conversation to database
-        ↓
-Lead shows interest (LEAD_INTERESTED event)
-        ↓
-[you add two nodes]:
-  1. Log to database (Write Event)
-  2. Add lead to Aimfox LinkedIn campaign
-        ↓
-Aimfox sends connection request on LinkedIn
-        ↓
-Lead accepts the connection
-        ↓
-Connection Accepted Handler fires:
-  - Fetches full email history from database
-  - Claude writes a warm LinkedIn first message
-    (referencing what was discussed over email)
-  - Sends via Aimfox immediately
-  - Logs to database
+  -> Gmail Reply Agent fires
+  -> Fetch Context (cross-channel history)
+  -> Log inbound to Supabase
+  -> Claude generates reply
+  -> Gmail sends from team@flowticsai.com
+  -> Log outbound to Supabase
+
+If lead shows interest -> trigger_cross_channel=true
+  -> follow_up_queue row inserted (target=linkedin)
+  -> Dispatcher fires -> Coordinator
+
+Lead has no conversation_urn yet (not connected on LinkedIn)
+  -> Coordinator: Add to Aimfox campaign (sends connection request)
+  -> Logs connection request to Supabase
+  -> Queue marked skipped
+
+Lead accepts connection request
+  -> Connection Accepted Handler fires
+  -> (same as Journey A from here)
+```
+
+### Journey C: Voice Follow-Up
+
+```
+Lead is in follow_up_queue with target_channel=voice
+  -> Dispatcher fires -> Coordinator
+  -> Coordinator triggers Call Agent webhook
+  -> Call Agent: fetch context, summarize, fire Retell call
+  -> Queue marked sent
+
+Call not answered
+  -> Retell fires Post Call Analysis
+  -> Logs to Supabase (no answer)
+  -> Re-queues new voice follow-up in 4h
+  -> Retries until answered
 ```
 
 ---
 
-## What Still Needs to Happen
+## What Notion Tracks
 
-| What | Who does it | Status |
-|---|---|---|
-| Create Aimfox "MCO LinkedIn Follow-Up" campaign | You | Pending |
-| Add campaign ID to Coordinator workflow | Me (once you share ID) | Pending |
-| Link Gmail credential in Coordinator workflow | You (inside n8n) | Pending |
-| Link Anthropic credential in Coordinator workflow | You (inside n8n) | Pending |
-| Add 2 nodes to Outcraft Followup Agent | You (instructions provided) | Pending |
-| Add Write Event + Fetch Context calls to Aimfox Reply Agent | You (instructions to be provided) | Pending |
-| Add Write Event + Fetch Context calls to Outcraft Reply Agent | You (instructions to be provided) | Pending |
-| Build Retool dashboard (lead list + conversation timeline) | Me | Not started |
-| Retell AI integration (voice/SMS) | Me (waiting for workflow JSONs) | Not started |
+Every time Write Event fires, it also updates Notion CRM:
+- Finds the lead's Notion page by email
+- Updates intent, last active channel, name, company if changed
+- Creates a new Conversation entry in the lead's page with message content + channel
+
+This keeps the pipeline visible in Notion without any manual updates.
 
 ---
 
-## The One Thing to Remember
+## What's Live
 
-Every channel in this system feeds into and reads from the same database. That is the entire point.
-
-It does not matter if a lead contacted you on LinkedIn first and then replied to an email a week later. When your AI agent goes to reply to that email, it already knows about the LinkedIn conversation. It replies like someone who has been paying attention — because the system has been.
-
-That is what makes the outreach feel human.
+| Capability | Status |
+|---|---|
+| LinkedIn connection accepted → thanks message → 24h follow-up | Live |
+| Lead replies on LinkedIn → AI responds (reactive) | Live |
+| Email reply received → AI responds with full cross-channel context | Live |
+| Scheduled email follow-up → Claude → Gmail | Live |
+| Scheduled LinkedIn DM follow-up → Claude → Aimfox | Live |
+| Scheduled voice follow-up → Retell AI → Maya | Live |
+| Unanswered calls → auto-retry in 4h | Live |
+| All interactions logged to Supabase + Notion | Live |
+| Retool dashboard | Not built |

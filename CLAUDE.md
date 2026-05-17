@@ -56,17 +56,19 @@ Auth: service role key (stored inside each n8n workflow's Config/Setup node and 
 
 | Table | Purpose | Key |
 |---|---|---|
-| `leads` | One row per lead. Canonical identity + intent | `lead_email` (PK) |
-| `conversations` | One row per message, any channel | `event_id` (PK, dedup key) |
-| `follow_up_queue` | Queued cross-channel follow-ups | `queue_id` (PK) |
-| `phone_map` | Maps phone numbers → lead emails (for Retell/SMS) | `phone_e164` (PK) |
+| `leads` | One row per lead. Canonical identity + intent | `lead_id` UUID (PK). `lead_email`, `linkedin_profile_url`, `linkedin_urn`, `phone_e164` are all nullable unique indexes |
+| `conversations` | One row per message, any channel | `event_id` (PK, dedup key). FK to `leads.lead_id` |
+| `follow_up_queue` | Queued cross-channel follow-ups | `queue_id` (PK). FK to `leads.lead_id` |
+| `phone_map` | Maps phone numbers → lead emails (for Retell/SMS) | `phone_e164` (PK). FK to `leads.lead_id` |
+
+**Lead identity:** A lead can be resolved by any of: `lead_id`, `lead_email`, `linkedin_profile_url`, `linkedin_urn`, or `phone_e164`. The `upsert_lead()` RPC handles multi-identifier resolution — if any identifier matches an existing lead, it updates that record rather than creating a duplicate.
 
 **Intent promotion** is handled atomically by the `upsert_lead()` Postgres RPC — intent never demotes. Order: `unknown → no_action → not_interested → referral → interested → booking`. Never implement this logic in n8n Code nodes.
 
 Postgres RPCs called by MCO workflows (not raw SQL):
-- `upsert_lead()` — creates or updates lead record with atomic intent promotion
-- `insert_conversation_event()` — inserts one conversation row, dedup on `event_id`
-- `fetch_lead_context()` — returns lead record + last N conversations ordered by timestamp desc
+- `upsert_lead()` — creates or updates lead record with atomic intent promotion and multi-identifier resolution. Returns `lead_id`.
+- `insert_conversation_event()` — inserts one conversation row, dedup on `event_id`. Accepts `lead_id` (preferred) or `lead_email`.
+- `fetch_lead_context()` — returns lead record + last N conversations. Accepts `lead_id`, `lead_email`, `linkedin_profile_url`, or `phone_e164`.
 
 ### n8n
 **Instance:** `https://n8n-1404.n8n.whiteserverdns.com`
@@ -96,24 +98,33 @@ Post Call:     https://n8n-1404.n8n.whiteserverdns.com/webhook/9cdd28e8-7cfd-476
 ```
 
 ### External Services
-- **Aimfox API** `https://api.aimfox.com/api/v2` — LinkedIn messaging. Token stored in workflow nodes.
+- **Aimfox API** `https://api.aimfox.com/api/v2` — LinkedIn messaging. Token stored in workflow nodes. Campaign ID for new connections: `39a3ee2f-8474-4e9a-b498-81d14e319788`.
 - **Gmail** `team@flowticsai.com` (sender name: `Flowtics AI`) — n8n credential `Gmail account` (ID `IC6TPjXMVxTyn2R9`). Used by Coordinator and Gmail Reply Agent.
-- **Anthropic** n8n credential `Anthropic account 2` (ID `WEpOCYlwQtWIw3jK`), model: `claude-sonnet-4-5-20250929`
-- **Retell AI** — outbound calls from `+15722124790`, agent `agent_ff863b1414049444c174360809` (Maya - Flowtics AI). Booking link: `https://calendly.com/mahfujurrahman511351/30min`. Post-call webhook logs to Supabase via Write Event.
-- **OpenAI** `gpt-4o-mini` — used by Call Agent to summarise prior conversation context before each Retell call.
+- **Anthropic** n8n credential `Anthropic account 2` (ID `WEpOCYlwQtWIw3jK`), model: `claude-sonnet-4-5-20250929`. Used by Coordinator (email + LinkedIn AI), Gmail Reply Agent.
+- **Retell AI** — outbound calls from `+15722124790`, agent `agent_ff863b1414049444c174360809` (Maya - Flowtics AI). Booking link: `https://calendly.com/mahfujurrahman511351/30min`. `queue_id` is passed to Retell in call metadata so Post Call Analysis can re-queue unanswered calls.
+- **OpenAI** `gpt-4o-mini` — used by Call Agent to summarise prior conversation context into a ≤180-word brief before each Retell call.
+- **Notion** — CRM. Write Event queries leads by email, updates existing page or creates new lead page + conversation entry. Notion database ID: `362dc227-748f-8184-892a-c6f8f3151b07`.
+- **Google Sheets** — used by Aimfox Reply Agent to track conversation state and decide whether to reply. n8n credential `Google Sheets account 2`.
+- **Slack** — used by Gmail Reply Agent and Aimfox Reply Agent for internal notifications. n8n credential `Slack account 3` (ID `EczWlUTWwagmArbp`).
 
 ---
 
 ## Key Workflows (SOPs in `workflows/`)
 
 ### `write_conversation_event.md`
-The single write path for the entire system. Required fields: `event_id` (UUID, dedup key), `lead_email`, `channel`, `direction`, `content`, `timestamp`. Optional: `trigger_cross_channel: true` + `target_channels: ["email"]` to queue a follow-up. Always set `trigger_cross_channel` only for `interested` or `booking` intent.
+The single write path for the entire system. Required fields: `event_id` (UUID, dedup key), `channel`, `direction`, `content`, `timestamp`, plus at least one lead identifier (`lead_id`, `lead_email`, `linkedin_profile_url`, `linkedin_urn`, or `phone_e164`). Optional: `trigger_cross_channel: true` + `target_channels: ["email"]` to queue a follow-up. Always set `trigger_cross_channel` only for `interested` or `booking` intent. Also writes to Notion CRM (queries by email → updates existing page or creates new one + conversation entry). On inbound events, cancels any pending follow-up queue items for that lead so we don't follow up when the lead just responded.
 
 ### `fetch_cross_channel_context.md`
-Returns a formatted `context_block` text for injection into AI agent prompts. Required: `lead_email`. Optional: `requesting_channel` (prepends a channel-awareness header), `max_events` (default 20).
+Returns a formatted `context_block` text for injection into AI agent prompts. Required: at least one lead identifier (`lead_id` preferred for speed, `lead_email`, `linkedin_profile_url`, or `phone_e164`). Optional: `requesting_channel` (prepends a channel-awareness header), `max_events` (default 20). Returns full lead object including `linkedin_conversation_urn`.
 
 ### Call Agent + Post Call Analysis
-The call pipeline is fully built. The Call Agent (`xE8mFF8HxPaSXNmi`) runs on schedule every 4 hours AND accepts on-demand webhook triggers. It fetches pending `voice` follow-ups from `follow_up_queue`, summarises prior context with GPT-4o-mini, then fires a Retell outbound call. After the call, Retell fires `call_analyzed` to the Post Call Analysis webhook (`r8XKHCnL4vju2E4j`), which writes the call summary to Supabase. The `Unified Input` node in the Call Agent normalises data from both the schedule and webhook paths so downstream nodes work identically.
+The call pipeline is fully built. The Call Agent (`xE8mFF8HxPaSXNmi`) runs on schedule every 4 hours AND accepts on-demand webhook triggers. It fetches pending `voice` follow-ups from `follow_up_queue`, summarises prior context with GPT-4o-mini, then fires a Retell outbound call. After the call, Retell fires `call_analyzed` to the Post Call Analysis webhook (`r8XKHCnL4vju2E4j`), which writes the call summary to Supabase. If the call was not answered (`disconnection_reason` = `dial_no_answer`, `voicemail`, `dial_failed`, or `busy`), Post Call Analysis automatically re-queues a new `voice` follow-up 4 hours later. The `Unified Input` node in the Call Agent normalises data from both the schedule and webhook paths so downstream nodes work identically.
+
+### Reply Agents (reactive) vs Coordinator (proactive)
+The system has two separate outbound paths:
+- **Reactive** — Reply Agent (LinkedIn/Aimfox) and Gmail Reply Agent fire when a lead sends a message. They fetch context, generate a reply, send it, and log it. These always respond to inbound.
+- **Proactive** — The Coordinator fires from the follow-up queue when we haven't heard back. It generates a message and sends it unprompted.
+The rule: **we should always be the last to send**. Reply Agents handle cases where the lead replied. The Coordinator handles cases where they haven't. The `Cancel Pending On Inbound` node in Write Event ensures that when a lead responds, any pending follow-up queue items are rescheduled so we don't double-send.
 
 ---
 
@@ -130,7 +141,7 @@ The call pipeline is fully built. The Call Agent (`xE8mFF8HxPaSXNmi`) runs on sc
 | Flowtics AI outbound call agent — schedule (every 4h) + on-demand webhook | Live |
 | Aimfox data fetched → written to Google Sheets | Live (Aimfox Data Fetching MCO) |
 | Aimfox responded event handling | Live (MCO - Aimfox Responded) |
-| Voice/SMS call → logged to Supabase via Retell | **Not built** (Retell handler pending) |
+| Outbound voice call → Retell AI → transcript logged → unanswered calls auto-retry | Live (Post Call Analysis) |
 | Retool dashboard | **Not built** |
 
 ---

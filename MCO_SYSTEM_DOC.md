@@ -1,6 +1,6 @@
 # MCO — Multi-Channel Outreach System
 **Full System Documentation**
-**Last Updated:** 2026-05-17 (Session 2)
+**Last Updated:** 2026-05-17 (Session 3 — synced to live n8n state)
 **Instance:** n8n-1404.n8n.whiteserverdns.com
 
 ---
@@ -43,7 +43,8 @@ One row per lead. The canonical identity record.
 
 | Column | Type | Purpose |
 |--------|------|---------|
-| `lead_email` | text (PK) | Primary key. For LinkedIn leads with no known email, uses the format `urn_{public_identifier}@linkedin.placeholder` |
+| `lead_id` | uuid (PK) | Primary key (UUID). Never changes. Used as FK by conversations and follow_up_queue. |
+| `lead_email` | text (unique, nullable) | Lowercase canonical email. Null for LinkedIn-only leads. |
 | `full_name` | text | Lead's full name |
 | `company` | text | Company name |
 | `linkedin_urn` | text | LinkedIn URN identifier |
@@ -53,7 +54,8 @@ One row per lead. The canonical identity record.
 | `first_seen_at` | timestamptz | When the lead first appeared in the system |
 | `last_activity_at` | timestamptz | Timestamp of most recent interaction across any channel |
 | `last_active_channel` | text | Which channel had the most recent interaction |
-| `monday_item_id` | text | Legacy column — no longer written by MCO. Monday CRM removed from system |
+| `linkedin_conversation_urn` | text | URN of the active LinkedIn conversation thread. Set by Connection Accepted Handler. Read by Coordinator to decide DM vs campaign path. |
+| `notion_page_id` | text | Notion CRM page ID for this lead. Written by Write Event. |
 | `clay_enriched` | boolean | Whether Clay has enriched this lead's data |
 | `overall_intent` | text | The highest intent level ever reached. Never demotes. Values: `unknown → no_action → not_interested → referral → already_have_contract → interested → booking` |
 | `overall_intent_updated_at` | timestamptz | When intent last changed |
@@ -72,7 +74,8 @@ Every single interaction across every channel. The complete cross-channel timeli
 | Column | Type | Purpose |
 |--------|------|---------|
 | `event_id` | text (PK) | Deduplication key. Safe to retry writes — duplicate event_id is ignored |
-| `lead_email` | text (FK → leads) | Which lead this interaction belongs to |
+| `lead_id` | uuid (FK → leads.lead_id) | Which lead this interaction belongs to. Preferred over email for lookups. |
+| `lead_email` | text | Denormalised for convenience. Not FK — lead_id is the FK. |
 | `timestamp` | timestamptz | When the interaction happened (from the source system, not write time) |
 | `channel` | text | `linkedin`, `email`, `voice`, `sms` |
 | `direction` | text | `inbound` (lead to us) or `outbound` (us to lead) |
@@ -80,7 +83,7 @@ Every single interaction across every channel. The complete cross-channel timeli
 | `content_type` | text | `message`, `transcript`, or `summary` |
 | `sender_name` | text | Name of who sent the message |
 | `intent` | text | Intent classification for this specific event |
-| `metadata_json` | jsonb | Arbitrary metadata (call_id, duration_ms, recording_url, aimfox_account_id, conversation_urn, etc.) |
+| `metadata` | jsonb | Arbitrary metadata (call_id, duration_ms, recording_url, aimfox_account_id, conversation_urn, queue_id, etc.) |
 | `workflow_execution_id` | text | n8n execution ID for traceability |
 | `written_at` | timestamptz | When this row was written to Supabase |
 
@@ -94,12 +97,13 @@ Queued cross-channel follow-ups waiting to be dispatched.
 | Column | Type | Purpose |
 |--------|------|---------|
 | `queue_id` | uuid (PK) | Unique identifier |
-| `lead_email` | text (FK → leads) | Which lead to follow up with |
+| `lead_id` | uuid (FK → leads.lead_id, nullable) | Which lead to follow up with. Preferred identifier. |
+| `lead_email` | text | Denormalised for convenience. |
 | `trigger_channel` | text | Which channel triggered this follow-up (e.g. `linkedin`) |
 | `target_channel` | text | Which channel to send the follow-up on (`email`, `voice`, `linkedin`) |
 | `trigger_event_id` | text | The conversation event that triggered this queue entry |
 | `scheduled_for` | timestamptz | When this follow-up should be sent (dispatchers check `<= now()`) |
-| `status` | text | `pending`, `sent`, or `cancelled` |
+| `status` | text | `pending`, `sent`, `skipped`, or `failed` |
 | `follow_up_context` | text | Context string passed to the Coordinator to personalise the message |
 | `sent_at` | timestamptz | When it was dispatched |
 | `created_at` | timestamptz | Row creation timestamp |

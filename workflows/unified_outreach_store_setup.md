@@ -1,7 +1,12 @@
 # Unified Outreach Store Setup
 
+> **Status: COMPLETED.** This was a one-time setup guide. All infrastructure is live.
+> Supabase project: `hkqssbomrcbtfbdowtgj.supabase.co`  
+> n8n instance: `https://n8n-1404.n8n.whiteserverdns.com`  
+> Last verified: 2026-05-17. Do not re-run — schema is already applied.
+
 ## Objective
-One-time setup guide for the MCO Unified Outreach infrastructure: Supabase database, n8n credential, Monday.com new columns, and Retool dashboard.
+One-time setup guide for the MCO Unified Outreach infrastructure: Supabase database, n8n credential, and Retool dashboard.
 
 ---
 
