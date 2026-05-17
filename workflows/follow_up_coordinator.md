@@ -78,7 +78,8 @@ Send a follow-up message to a lead on a specified channel. Fetches cross-channel
 
 ### Voice path
 6. **Voice: Trigger Call Agent** — `POST /webhook/3adf4681-721b-452e-94b3-5618887a15c4`
-   - Passes: `lead_email`, `lead_id`, `phone_e164`, `queue_id`, `target_channel: "voice"`, `trigger_channel`, `follow_up_context`
+   - Passes: `lead_email`, `lead_id`, `phone_e164`, `queue_id`, `target_channel: "voice"`, `trigger_channel`, `follow_up_context`, `triggered_by_coordinator: true`
+   - The `triggered_by_coordinator` flag tells the Call Agent to skip its own `Mark Queue Sent` step — the Coordinator owns that responsibility on the webhook path
 7. **Voice: Prepare Result** — Code node
    - Stamps `generated_message: "Voice call follow-up initiated via Call Agent"`, `send_status: "sent"`
 8. After Send → Log → Mark Queue Sent → Return OK

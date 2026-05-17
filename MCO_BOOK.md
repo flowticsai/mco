@@ -411,6 +411,8 @@ The Coordinator is the most complex workflow. It receives a queue row from the D
 
 **Why voice is marked `sent` immediately:** the Coordinator only triggers the call. It doesn't know if it was answered. Post Call Analysis handles the outcome — if not answered, it re-queues. The Coordinator's job is done when the call is triggered.
 
+**Why the Call Agent skips `Mark Queue Sent` on the webhook path:** the Coordinator passes `triggered_by_coordinator: true` in the webhook body. The Call Agent's `Skip Mark Queue?` IF node checks this — if true (webhook path), skips its own `Mark Queue Sent` because the Coordinator already owns that step. If false (schedule path), runs `Mark Queue Sent` normally. Without this, the same `queue_id` would be marked `sent` twice, corrupting any future call-count or retry-limit logic.
+
 ---
 
 ### 6.5 Aimfox Connection Accepted Handler — The Handshake

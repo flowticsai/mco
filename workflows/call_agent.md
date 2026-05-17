@@ -38,7 +38,7 @@ Both paths converge at **Unified Input**, which normalises the data shape so all
 3. **Fetch Pending Voice Leads** *(schedule path only)* — Supabase REST, fetches pending voice rows
 4. **Loop One Lead at a Time** *(schedule path only)* — SplitInBatches, processes one lead per iteration
 5. **Unified Input** — Code node, merges both paths into a single shape:
-   - `lead_email`, `lead_id`, `phone_e164`, `queue_id`, `target_channel`, `trigger_channel`, `follow_up_context`
+   - `lead_email`, `lead_id`, `phone_e164`, `queue_id`, `target_channel`, `trigger_channel`, `follow_up_context`, `triggered_by_coordinator`
 6. **Fetch Lead Record** — Supabase REST, fetches lead by `lead_email`
    - Returns: `full_name`, `company`, `phone_e164`, `overall_intent`
 7. **POST /mco-fetch-context** — fetches last 20 conversations for the lead
@@ -57,8 +57,11 @@ Both paths converge at **Unified Input**, which normalises the data shape so all
     - `to_number: phone_e164`
     - `metadata: { queue_id, lead_email, source: "n8n_flowtics_followup" }` — `queue_id` is echoed back in Retell webhook for Post Call Analysis
 12. **Retell: Create Phone Call** — POST to Retell API
-13. **Mark Queue Sent** — PATCH `follow_up_queue` row to `status: "sent"`
-14. **Loop One Lead at a Time** *(schedule path)* — continue to next lead
+13. **Skip Mark Queue?** — IF node. Checks `triggered_by_coordinator === true`.
+    - YES (webhook path) → skip. The Coordinator already marked the queue row `sent` before triggering this workflow.
+    - NO (schedule path) → Mark Queue Sent
+14. **Mark Queue Sent** *(schedule path only)* — PATCH `follow_up_queue` row to `status: "sent"`
+15. **Loop One Lead at a Time** *(schedule path)* — continue to next lead
 
 ## What Happens After the Call
 
@@ -71,6 +74,7 @@ Retell fires `call_analyzed` to Post Call Analysis (`r8XKHCnL4vju2E4j`) when the
 
 - **`queue_id` in Retell metadata** — this is how Post Call Analysis knows which queue row to re-queue after an unanswered call. Never remove it from `Build Retell Request`.
 - **`phone_e164` flow** — must pass through `Normalize Webhook Input` → `Unified Input` → `Prepare Retell Variables`. If any node drops it, the call fails silently. Reference: `$('Fetch Lead Record').first().json.phone_e164 || $('Unified Input').item.json.phone_e164`.
+- **`triggered_by_coordinator` flag** — when the Coordinator triggers this workflow via webhook, it passes `triggered_by_coordinator: true`. The `Skip Mark Queue?` IF node uses this to skip the `Mark Queue Sent` step on the webhook path, since the Coordinator already marked the row `sent`. On the schedule path this flag is absent (`false`), so `Mark Queue Sent` runs normally.
 - **No dedup on calls** — if the workflow runs twice for the same queue row (Dispatcher race), two calls go out. The queue row is marked `sent` at the end, so the second run fires before the PATCH. Low probability given 4h schedule interval and fast execution.
 - **neverError NOT set** — Retell call failures will show as errors in n8n executions. Check executions tab if a lead is not getting called.
 
