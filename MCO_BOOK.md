@@ -482,28 +482,33 @@ Fires when a lead sends a LinkedIn message. This is reactive — we always reply
 
 Fires when any email arrives at the inbox. Uses a two-layer gate to ensure it only replies to leads from our campaigns.
 
+**Two scenarios that hit the Gmail trigger:**
+
+- **Scenario 1 — Instantly outbound CC:** Instantly sends an email to the lead and CCs `team@flowticsai.com`. Gmail trigger fires. Email shape: From=Instantly sender, To=lead, Cc=team@flowticsai.com. The lead is in the **To** field.
+- **Scenario 2 — Lead replies:** Lead replies to our email. Email shape: From=lead, To=team@flowticsai.com. The lead is in the **From** field.
+
+In both cases we want to reply to the lead. The lead is whoever is in Supabase — regardless of which field they appear in.
+
 **Gate chain:**
 
-1. **Extract & Filter** — drops: `noreply`/`no-reply` senders, non-replies (no `Re:` prefix or `inReplyTo` header), empty body emails.
-2. **Supabase: Check Outbound** — queries `conversations?lead_email=eq.{sender}&channel=eq.email&direction=eq.outbound&limit=1`. Only our leads who we have previously emailed will have an outbound email row.
-3. **Filter: Our Thread Only** — if Supabase returns empty array → drops (returns `[]`). If rows exist → passes through.
-
-**The logic behind the gate:** newsletters, cold inbound, random emails will never have an outbound email row in Supabase. Only leads from our Instantly AI campaigns (who we emailed first) or leads the Coordinator has emailed will pass. This is intentional and correct — we only reply when we started the conversation.
+1. **Extract & Filter** — parses both `from_email` and `to_email` (outputs both, does not decide `lead_email` yet). Drops: `noreply`/`no-reply` senders, non-replies (no `Re:` prefix or `inReplyTo` header), empty body. Also normalises Gmail trigger header casing — Gmail outputs `From`, `To`, `Subject` capitalised; code reads `email.From || email.from` etc.
+2. **Supabase: Check Outbound** — queries `leads?or=(lead_email.eq.{from_email},lead_email.eq.{to_email})&select=lead_id,lead_email,full_name&limit=1`. Checks both FROM and TO. Whichever matches is the lead.
+3. **Filter: Our Thread Only** — if Supabase returns empty → drops. If match found → sets `lead_email` and `lead_name` from the Supabase result and passes downstream.
 
 **After the gate:**
 
-4. **MCO: Fetch Context** — gets cross-channel history for this lead
-5. **Merge Context** — merges email fields with context
-6. **MCO: Write Inbound** — logs the inbound email
+4. **MCO: Fetch Context** — gets cross-channel history using the resolved `lead_email`
+5. **Merge Context** — merges email fields with context, `lead_email` from Filter result
+6. **MCO: Write Inbound** — logs the inbound email against the correct lead
 7. **Text Classifier** — classifies intent. If should reply → Reply Agent. Otherwise → No Operation.
 8. **Reply Agent** — Anthropic `claude-sonnet-4-20250514`. Prompt: lead name + subject + email body + cross-channel history. System message: use cross-channel history to understand intent only, keep reply focused on this email thread, do NOT mention other channels.
 9. **Send a message (Slack)** — human review/approval step
-10. **Send Gmail Reply** — sends in the same thread
+10. **Send Gmail Reply** — sends to `lead_email` (the resolved Supabase match)
 11. **MCO: Write Outbound** — logs the sent reply
 
-**Fail-safe behaviour:** if Supabase is unavailable and the outbound check fails (returns a non-array), `Filter: Our Thread Only` checks `Array.isArray(rows) && rows.length > 0` — a non-array fails this check and returns `[]`, so the email is dropped rather than replied to blindly. The agent fails safe.
+**Fail-safe behaviour:** if Supabase is unavailable, `Filter: Our Thread Only` checks `Array.isArray(rows) && rows.length > 0` — a non-array error response fails this check and returns `[]`, dropping the email rather than replying blindly.
 
-**Instantly AI integration:** no separate workflow. In every Instantly AI campaign, set Reply-To = `team@flowticsai.com`. When a lead replies to an Instantly email, Gmail receives it and this trigger fires.
+**Instantly AI integration:** no separate workflow. In every Instantly campaign, set Reply-To = `team@flowticsai.com`. The Instantly workflow must also write the lead to Supabase (`upsert_lead`) at send time — this is the prerequisite for the Gmail Reply Agent to recognise the lead when the CC arrives.
 
 ---
 
