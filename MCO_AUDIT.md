@@ -59,6 +59,8 @@ All 10 workflows are Active. Supabase tables and RPCs confirmed accessible.
 | Voice: Trigger Call Agent missing lead_id and phone_e164 | Coordinator | Call Agent couldn't find LinkedIn-only leads | Added both fields to payload |
 | Post Call Analysis no retry logic | Post Call Analysis | Unanswered calls silently lost | Added Check Retry → Needs Retry? → Re-Queue Voice Call |
 | Log Connection Request missing between Add to Campaign and Mark Queue Skipped | Coordinator | Connection requests not logged to Supabase | Added Log Connection Request node |
+| Extract Fields read `body.account_id` and `body.lead` — wrong structure | Connection Accepted Handler | Would throw "No account_id" on every real Aimfox webhook; only test payload (flat format) had ever run | Fixed to read `event.account.id` and `event.target` per actual Aimfox accepted webhook spec |
+| Extract Conversation URN used `require("crypto")` — blocked by n8n task runner | Connection Accepted Handler | Every real execution crashed at URN extraction | Replaced with `Math.random()`-based UUID generator |
 
 ---
 

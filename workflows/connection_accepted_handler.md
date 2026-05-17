@@ -22,7 +22,7 @@ When a LinkedIn connection is accepted: send a fixed "thanks for connecting" ope
 ## Node Sequence
 
 1. **Webhook** — receives Aimfox `accepted` event
-2. **Extract Fields** — Code node, pulls account_id, lead_id (Aimfox ID), lead_urn, linkedin_profile_url from payload
+2. **Extract Fields** — Code node, parses real Aimfox `accepted` payload: reads `account_id` from `event.account.id`, `lead_id` + `lead_urn` + `lead_name` from `event.target`, constructs `linkedin_profile_url` from `target.public_identifier` if `profile_url` is absent. Falls back to legacy flat format for test payloads.
 3. **Get Lead Custom Variables** — `GET Aimfox /accounts/:id/leads/:lead_urn/custom-variables`
 4. **Extract LEAD_EMAIL** — Code node, reads LEAD_EMAIL and lead_name from custom variables response
 5. **Send Thanks Message** — `POST Aimfox /accounts/:id/conversations`
@@ -32,6 +32,7 @@ When a LinkedIn connection is accepted: send a fixed "thanks for connecting" ope
    - Merges all fields from Extract LEAD_EMAIL back into the output
    - Reads `conversation_urn` from Aimfox response (tries: `conversation_urn`, `urn`, `data.conversation_urn`, `conversation.urn`)
    - Sets `thanks_sent: true`
+   - Generates `log_event_id` (UUID) using `Math.random()` — do NOT use `require('crypto')`, it is blocked by the n8n task runner
 7. **Log Connection Accepted** — `POST /mco-write-event`
    - channel: `linkedin`, direction: `outbound`
    - content: the thanks message text
