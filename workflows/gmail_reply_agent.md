@@ -9,20 +9,31 @@
 
 React to inbound email replies from leads who are already in our outbound email campaign. Checks that the sender is one of our leads (gate), fetches cross-channel context, classifies intent, generates a focused email reply, sends it via Gmail, and logs both the inbound and outbound events to Supabase.
 
+## How Emails Arrive
+
+Instantly sends outbound emails to leads and CCs `team@flowticsai.com` on every send. This means two types of email hit the Gmail trigger:
+
+1. **CC copies of our own outbound** — From: our Instantly sender, To: lead, Cc: `team@flowticsai.com`. These must be dropped.
+2. **Lead replies** — From: lead's email, To: `team@flowticsai.com`. These are what we want to process.
+
+The two-filter gate handles this:
+
 ## Gate — Only Our Campaign Leads
 
-Two filters run before any AI processing:
-
 **Filter 1 — `Extract & Filter` (Code node):**
+- Normalises Gmail trigger header casing — Gmail outputs `From`, `Subject` (capitalised) not `from`, `subject`. Code reads both forms with fallback: `email.from || email.From`.
+- Drops emails where sender could not be parsed
 - Drops emails from `noreply` / `no-reply` senders
+- Drops emails where sender is `team@flowticsai.com` — catches CC copies when we use that address as the Instantly sender
 - Drops emails that are not replies (requires `Re:` subject prefix or `inReplyTo` / `in-reply-to` header)
 - Drops emails with empty body
 
 **Filter 2 — `Supabase: Check Outbound` → `Filter: Our Thread Only`:**
 - Queries Supabase: `conversations?lead_email=eq.{sender}&channel=eq.email&direction=eq.outbound&limit=1`
-- If no outbound email row found → drops silently (returns `[]`)
-- Newsletters, cold inbound, random emails are all dropped here
-- Only leads we have previously emailed (via Coordinator or any other path) pass through
+- The FROM address (lead's email) must match a lead we have previously emailed. This is the definitive gate.
+- CC copies where FROM = a random Instantly sender address also get dropped here — that sender email is not a lead in Supabase.
+- Newsletters, cold inbound, random emails are all dropped here.
+- Only leads we have previously emailed (via Coordinator or any other path) pass through.
 
 ## Node Sequence
 
@@ -61,6 +72,7 @@ This means if a lead called us last week but is now replying to an email, the AI
 - **Gate is email-outbound-only:** the Supabase check looks for `direction=outbound, channel=email`. LinkedIn-only leads (never emailed) are dropped. Once the Coordinator sends them an email, future replies are picked up.
 - **`neverError: true` on Supabase check:** if Supabase is down, the filter node receives an error response. Since `Filter: Our Thread Only` checks `Array.isArray(rows) && rows.length > 0`, a non-array error response also results in `return []` — so the agent fails safe (drops the email) rather than replying to everything.
 - **Instantly AI leads:** Set Reply-To = `team@flowticsai.com` in every Instantly campaign. Gmail trigger picks up those replies automatically.
+- **Gmail header casing bug (fixed 2026-05-18):** The n8n Gmail trigger outputs header names with capital letters (`From`, `Subject`) not lowercase. The original `Extract & Filter` code used `email.from` and `email.subject` (lowercase), which were always `undefined`. This caused every email — including real lead replies — to be silently dropped at the `!leadEmail` check. Fixed by reading `email.from || email.From` and `email.subject || email.Subject`. Without this fix the workflow never processed any lead reply.
 
 ## Error Handling
 
