@@ -507,26 +507,21 @@ Fires when any email arrives at the inbox. Uses a two-layer gate to ensure it on
 
 ### 6.8 Call Agent — Voice Proactive
 
-**ID:** `xE8mFF8HxPaSXNmi` | **Entry:** `POST /webhook/3adf4681-...` + Schedule every 4h
+**ID:** `xE8mFF8HxPaSXNmi` | **Entry:** `POST /webhook/3adf4681-...` — webhook only
 
-Places outbound Retell phone calls to leads in the voice queue. Can be triggered on a schedule (batch) or on-demand (single lead via webhook).
+Places outbound Retell phone calls. Triggered exclusively by the Coordinator via webhook — one execution per lead. If multiple leads need calling simultaneously, the Coordinator fires multiple webhook requests and n8n runs them as parallel executions. No schedule, no batch loop.
 
-**Two entry paths, one convergence point:**
+**Entry path:**
 
 ```
-Schedule (every 4h)           Webhook (on-demand)
-      |                              |
-Fetch pending voice rows      Normalize Webhook Input
-from follow_up_queue          (parse body fields)
-      |                              |
-Loop One Lead at a Time       ←─────┘
+Coordinator POSTs to webhook
       |
-  Unified Input (converges both paths)
+Normalize Webhook Input (parse body fields)
       |
-  [rest of workflow runs identically]
+Unified Input (normalise data shape)
+      |
+[rest of workflow]
 ```
-
-**Why `Unified Input`:** the schedule path fetches multiple leads and loops; the webhook path receives one lead. Both need to produce the same data shape for downstream nodes. `Unified Input` is the normalisation point — after this node, the workflow doesn't know or care which path triggered it.
 
 **Node sequence after Unified Input:**
 

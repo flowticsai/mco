@@ -1,24 +1,19 @@
 # Flowtics AI Call Agent — MCO
 
 **n8n ID:** `xE8mFF8HxPaSXNmi`  
-**Entry:** `POST /webhook/3adf4681-721b-452e-94b3-5618887a15c4` + Schedule every 4h  
-**Node count:** 14 | **Status:** Active  
-**Triggered by:** Coordinator (voice path) via webhook, or schedule every 4h
+**Entry:** `POST /webhook/3adf4681-721b-452e-94b3-5618887a15c4`  
+**Node count:** 12 | **Status:** Active  
+**Triggered by:** Coordinator (voice path) via webhook only
 
 ## Objective
 
-For each pending `voice` row in `follow_up_queue`, fetch the lead record, summarise prior conversation context using GPT-4o-mini, then place an outbound Retell call. The `queue_id` is embedded in Retell metadata so Post Call Analysis can mark the row and re-queue if the call is not answered.
+Receive a single lead payload from the Coordinator, fetch the lead record, summarise prior conversation context using GPT-4o-mini, then place an outbound Retell call. The `queue_id` is embedded in Retell metadata so Post Call Analysis can mark the row and re-queue if the call is not answered.
 
-## Two Entry Paths
+## Entry
 
-| Trigger | How | Data source |
-|---|---|---|
-| Schedule (every 4h) | n8n cron → Supabase fetch → loop | Fetches all pending `voice` rows from Supabase |
-| Webhook (on-demand) | Coordinator POSTs to webhook URL | Receives single lead payload in webhook body |
+Webhook only. One execution per lead. If multiple leads need to be called at the same time, the Coordinator fires multiple webhook requests — n8n runs them as separate concurrent executions. No schedule, no batch loop.
 
-Both paths converge at **Unified Input**, which normalises the data shape so all downstream nodes work identically.
-
-## Required Inputs (webhook path)
+## Required Inputs
 
 | Field | Notes |
 |---|---|
@@ -29,39 +24,37 @@ Both paths converge at **Unified Input**, which normalises the data shape so all
 | `target_channel` | Should be `voice` |
 | `trigger_channel` | Where this lead came from (e.g. `email`, `linkedin`) |
 | `follow_up_context` | Optional context string passed from queue row |
+| `triggered_by_coordinator` | Boolean. Set to `true` by Coordinator. Tells Call Agent to skip its own Mark Queue Sent. |
 
 ## Node Sequence
 
-1. **Webhook / Schedule** — entry point
-2. **Normalize Webhook Input** *(webhook path only)* — Code node
-   - Reads `lead_email`, `lead_id`, `phone_e164`, `queue_id`, `target_channel`, `trigger_channel`, `follow_up_context` from body
-3. **Fetch Pending Voice Leads** *(schedule path only)* — Supabase REST, fetches pending voice rows
-4. **Loop One Lead at a Time** *(schedule path only)* — SplitInBatches, processes one lead per iteration
-5. **Unified Input** — Code node, merges both paths into a single shape:
+1. **Webhook** — entry point
+2. **Normalize Webhook Input** — Code node
+   - Reads `lead_email`, `lead_id`, `phone_e164`, `queue_id`, `target_channel`, `trigger_channel`, `follow_up_context`, `triggered_by_coordinator` from body
+3. **Unified Input** — Code node, normalises data shape:
    - `lead_email`, `lead_id`, `phone_e164`, `queue_id`, `target_channel`, `trigger_channel`, `follow_up_context`, `triggered_by_coordinator`
-6. **Fetch Lead Record** — Supabase REST, fetches lead by `lead_email`
+4. **Fetch Lead Record** — Supabase REST, fetches lead by `lead_email`
    - Returns: `full_name`, `company`, `phone_e164`, `overall_intent`
-7. **POST /mco-fetch-context** — fetches last 20 conversations for the lead
-8. **Build OpenAI Request** — Code node, assembles a prompt from context for GPT-4o-mini
-9. **Summarize Prior Conversation** — OpenAI `gpt-4o-mini`, ≤180-word prior conversation brief
-10. **Prepare Retell Variables** — Set node, builds Retell dynamic variables:
+5. **POST /mco-fetch-context** — fetches last 20 conversations for the lead
+6. **Build OpenAI Request** — Code node, assembles a prompt from context for GPT-4o-mini
+7. **Summarize Prior Conversation** — OpenAI `gpt-4o-mini`, ≤180-word prior conversation brief
+8. **Prepare Retell Variables** — Set node, builds Retell dynamic variables:
     - `previous_conversation_summary` — from OpenAI response
     - `lead_email` — from Unified Input
     - `first_name` — from `Build OpenAI Request` lead object
     - `company_name` — from `Build OpenAI Request` lead object
     - `phone_e164` — from `Fetch Lead Record` (fallback: Unified Input)
     - `booking_link` — `https://calendly.com/mahfujurrahman511351/30min`
-11. **Build Retell Request** — Code node, assembles Retell API payload:
+9. **Build Retell Request** — Code node, assembles Retell API payload:
     - `agent_id: "agent_ff863b1414049444c174360809"` (Maya - Flowtics AI)
     - `from_number: "+15722124790"`
     - `to_number: phone_e164`
     - `metadata: { queue_id, lead_email, source: "n8n_flowtics_followup" }` — `queue_id` is echoed back in Retell webhook for Post Call Analysis
-12. **Retell: Create Phone Call** — POST to Retell API
-13. **Skip Mark Queue?** — IF node. Checks `triggered_by_coordinator === true`.
-    - YES (webhook path) → skip. The Coordinator already marked the queue row `sent` before triggering this workflow.
-    - NO (schedule path) → Mark Queue Sent
-14. **Mark Queue Sent** *(schedule path only)* — PATCH `follow_up_queue` row to `status: "sent"`
-15. **Loop One Lead at a Time** *(schedule path)* — continue to next lead
+10. **Retell: Create Phone Call** — POST to Retell API
+11. **Skip Mark Queue?** — IF node. Checks `triggered_by_coordinator === true`.
+    - YES → skip. Coordinator already marked the queue row `sent`.
+    - NO → Mark Queue Sent (fallback for direct webhook calls without the flag)
+12. **Mark Queue Sent** *(fallback only)* — PATCH `follow_up_queue` row to `status: "sent"`
 
 ## What Happens After the Call
 
