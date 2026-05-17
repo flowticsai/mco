@@ -61,6 +61,13 @@ All 10 workflows are Active. Supabase tables and RPCs confirmed accessible.
 | Log Connection Request missing between Add to Campaign and Mark Queue Skipped | Coordinator | Connection requests not logged to Supabase | Added Log Connection Request node |
 | Extract Fields read `body.account_id` and `body.lead` — wrong structure | Connection Accepted Handler | Would throw "No account_id" on every real Aimfox webhook; only test payload (flat format) had ever run | Fixed to read `event.account.id` and `event.target` per actual Aimfox accepted webhook spec |
 | Extract Conversation URN used `require("crypto")` — blocked by n8n task runner | Connection Accepted Handler | Every real execution crashed at URN extraction | Replaced with `Math.random()`-based UUID generator |
+| Random UUID as `log_event_id` provided no dedup protection vs Aimfox 6-retry webhook | Connection Accepted Handler | Duplicate conversation rows on Aimfox retries | Now uses `raw.id` (stable Aimfox event UUID from webhook payload) as `log_event_id`; Math.random() only as fallback |
+| `Log Connection Request` and `Mark Queue Skipped` used `$json` from prior HTTP responses | Coordinator | `queue_id` and all lead fields were `undefined` at those nodes; queue row never marked skipped | Changed all field references to `$('Merge Context').first().json.*` |
+| Coordinator `Setup & Validate` syntax error: `//` comment ate trailing comma | Coordinator | SyntaxError on every execution | Removed inline comment, clean object literal |
+| Fetch Context URL undefined: Setup & Validate omitted `FETCH_CONTEXT_URL` and `WRITE_EVENT_URL` | Coordinator | "URL parameter must be a string, got undefined" on Fetch Context node | Added both constants to Setup & Validate output |
+| `Add to LinkedIn Campaign` URL not evaluated (no `=` prefix) | Coordinator | Aimfox received URL-encoded literal `%7B%7B$json.aimfox_account_id%7D%7D` | Changed to `={{ "https://..." + $json.aimfox_account_id + "..." }}` expression |
+| `Mark Queue Skipped` URL filter syntax wrong | Coordinator | Supabase received literal `eq={{ $json.queue_id }}` causing PGRST100 parse error | Changed to `={{ "...?queue_id=eq." + $('Merge Context').first().json.queue_id }}` |
+| `Add to LinkedIn Campaign` endpoint path `/leads` returns 404 from Aimfox | Coordinator | Connection request campaign add silently failed on every execution | Changed to `/audience` per debug guide; Aimfox endpoint still under investigation |
 
 ---
 

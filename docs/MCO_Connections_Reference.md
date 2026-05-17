@@ -281,7 +281,7 @@ Never implement intent promotion in n8n Code nodes — always goes through `upse
 | `GET /accounts/:id/leads/:urn/custom-variables` | Connection Accepted Handler | Read LEAD_EMAIL + lead_name |
 | `POST /accounts/:id/conversations` | Connection Accepted Handler | Send thanks message (opens new thread) |
 | `POST /accounts/:id/conversations/:urn/messages` | Coordinator (LinkedIn DM path) | Reply to existing conversation thread |
-| `POST /accounts/:id/campaigns/:campaign_id/leads` | Coordinator (no URN path) | Add lead to connection request campaign |
+| `POST /accounts/:id/campaigns/:campaign_id/audience` | Coordinator (no URN path) | Add lead to connection request campaign |
 | `PUT /leads/:id/labels/:label_id` | Aimfox Responded | Mark lead as having responded |
 | `GET /accounts/:id/conversations/:urn` | Reply Agent | Fetch conversation thread for context |
 
