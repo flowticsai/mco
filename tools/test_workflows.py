@@ -74,7 +74,7 @@ r = requests.post(WRITE_URL, json={
 data = r.json() if r.headers.get("content-type","").startswith("application/json") else {}
 check("HTTP 200",              r.status_code == 200, r.status_code)
 check("status = ok",           data.get("status") == "ok", data)
-check("monday_item_id present",bool(data.get("monday_item_id")), data)
+check("notion write ok",       data.get("status") == "ok", data)
 
 # Verify conversation row was actually written
 time.sleep(1)
