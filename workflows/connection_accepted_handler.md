@@ -32,7 +32,7 @@ When a LinkedIn connection is accepted: send a fixed "thanks for connecting" ope
    - Merges all fields from Extract LEAD_EMAIL back into the output
    - Reads `conversation_urn` from Aimfox response (tries: `conversation_urn`, `urn`, `data.conversation_urn`, `conversation.urn`)
    - Sets `thanks_sent: true`
-   - Generates `log_event_id` (UUID) using `Math.random()` — do NOT use `require('crypto')`, it is blocked by the n8n task runner
+   - Sets `log_event_id` from `fields.aimfox_event_id` (the `id` field Aimfox sends in the webhook payload) — stable across retries, so Supabase dedup actually works. Falls back to `Math.random()` UUID if absent. Do NOT use `require('crypto')` — blocked by the n8n task runner.
 7. **Log Connection Accepted** — `POST /mco-write-event`
    - channel: `linkedin`, direction: `outbound`
    - content: the thanks message text
