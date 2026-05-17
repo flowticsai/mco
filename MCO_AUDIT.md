@@ -75,6 +75,9 @@ All 10 workflows are Active. Supabase tables and RPCs confirmed accessible.
 | `Log to Supabase` content used `$('Merge Context').first().json.generated_message` | Coordinator | Same as above — content always null | Changed to `$json.generated_message` (from After Send output) |
 | `Log to Supabase` didn't pass `linkedin_urn` or `linkedin_profile_url` | Coordinator | For LinkedIn-only leads (no email), Write Event had no usable identifier | Added `linkedin_urn` and `linkedin_profile_url` to payload |
 | Write Event `Setup & Validate` didn't accept `lead_id` as valid identifier | Write Event | LinkedIn-only leads passed `lead_id` only → "At least one identifier required" error → no conversation logged | Added `lead_id` check to the identifier validation block |
+| Call Agent `Normalize Webhook Input` didn't pass `phone_e164` or `lead_id` | Call Agent | Webhook-triggered calls had no phone number → Retell call couldn't be placed | Added `phone_e164` and `lead_id` to both `Normalize Webhook Input` and `Unified Input` |
+| Call Agent `Prepare Retell Variables` used `$('Loop One Lead at a Time').item.json.phone_e164` | Call Agent | Loop node never executes on webhook path → "hasn't been executed" error | Changed to `$('Unified Input').item.json.phone_e164` |
+| `Prepare Retell Variables` phone_e164 used `json[0]?.phone_e164` (array access) | Call Agent | `Fetch Lead Record` returns flat object — `json[0]` is undefined | Changed to `json.phone_e164` |
 
 ---
 
