@@ -106,17 +106,14 @@ Never implement intent promotion in n8n Code nodes — always goes through `upse
 
 ### 3. FollowUp Queue Dispatcher (`3ju6z4oJcWJqskBN`)
 **Entry:** Schedule, every 15 minutes  
-**Node count:** 9 | **Status:** Active
+**Node count:** 6 | **Status:** Active
 
 **What it does:**
 1. Config — Supabase URL + key + Coordinator URL
 2. Fetch Pending Queue — `GET /follow_up_queue` where `status=pending` and `scheduled_for <= now()`
-3. Split Rows — one item per queue row; passes `lead_id`, `lead_email`, `target_channel`, `follow_up_context`
-4. LinkedIn? (IF) — routes LinkedIn follow-ups through a metadata lookup
-5. Fetch LinkedIn Meta — queries `conversations` by `lead_id` (channel=linkedin) to get `aimfox_account_id` and `conversation_urn` from metadata
-6. Merge LinkedIn Meta — merges Aimfox metadata into the row
-7. Call Coordinator — `POST /mco-followup` with `queue_id`, `lead_id`, `lead_email`, `target_channel`, `aimfox_account_id`, `conversation_urn`
-8. Log Result — logs dispatch outcome to console
+3. Split Rows — one item per queue row; parses `follow_up_context` JSON to extract `aimfox_account_id`, `conversation_urn`, `linkedin_urn`, `linkedin_profile_url`, `phone_e164` directly from the queue row
+4. Call Coordinator — `POST /mco-followup` with `queue_id`, `lead_id`, `lead_email`, `target_channel`, `aimfox_account_id`, `conversation_urn` and all other fields
+5. Log Result — logs dispatch outcome to console
 
 ---
 

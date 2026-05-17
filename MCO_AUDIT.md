@@ -32,7 +32,7 @@ All 10 workflows are Active. Supabase tables and RPCs confirmed accessible.
 |---|---|---|---|---|
 | Write Conversation Event | `5qOo5YzrPnW8Uj9g` | 21 | Yes | Includes Notion CRM integration + Cancel Pending On Inbound |
 | Fetch Cross-Channel Context | `UJoDCfkmD3NJHktk` | 5 | Yes | Returns full lead object with linkedin_conversation_urn |
-| FollowUp Queue Dispatcher | `3ju6z4oJcWJqskBN` | 9 | Yes | Queries by lead_id, selects metadata column (fixed 2026-05-17) |
+| FollowUp Queue Dispatcher | `3ju6z4oJcWJqskBN` | 6 | Yes | Simplified 2026-05-17: Split Rows parses follow_up_context directly; LinkedIn branch removed |
 | Centralized Follow-Up Coordinator | `KXKcCYRnK4V8v9k7` | 26 | Yes | 3 channel paths; LinkedIn branch fixed 2026-05-17 |
 | Connection Accepted Handler | `WTbIAJCZGtppAT91` | 9 | Yes | Queue Follow-Up now references correct node (fixed 2026-05-17) |
 | Aimfox Reply Agent — MCO | `SPN1NLyHH1LcfViD` | 37 | Yes | Reactive; Google Sheets gate; MCO writes on interested leads |
@@ -55,10 +55,7 @@ All 10 workflows are Active. Supabase tables and RPCs confirmed accessible.
 | LinkedIn branch too complex (extra IF nodes) | Coordinator | Confusing, error-prone | Simplified to single `Has Conversation URN?` check |
 | Add to LinkedIn Campaign → After Send (wrong path) | Coordinator | Connection request counted as sent message | Split to separate Mark Queue Skipped → Return OK path |
 | Queue LinkedIn Follow-Up used $json from HTTP response | Connection Accepted Handler | conversation_urn and aimfox_account_id were null in queue row | Changed to reference Extract Conversation URN node directly |
-| Split Rows dropped lead_id | Dispatcher | Coordinator received wrong lead_id | Added row.lead_id to Split Rows output |
-| Fetch LinkedIn Meta queried metadata_json (wrong column) | Dispatcher | Always returned empty, aimfox_account_id was always null | Fixed to select metadata column |
-| Fetch LinkedIn Meta queried by lead_email | Dispatcher | Failed for LinkedIn-only leads with no email | Changed to query by lead_id |
-| Merge LinkedIn Meta used meta.lead_id (Aimfox ID) | Dispatcher | Wrong lead_id sent to Coordinator | Changed to use row.lead_id |
+| LinkedIn? / Fetch LinkedIn Meta / Merge LinkedIn Meta nodes redundant | Dispatcher | follow_up_context already held aimfox_account_id and conversation_urn; extra nodes added complexity with no benefit | Removed all three; Split Rows now parses follow_up_context directly (2026-05-17) |
 | Voice: Trigger Call Agent missing lead_id and phone_e164 | Coordinator | Call Agent couldn't find LinkedIn-only leads | Added both fields to payload |
 | Post Call Analysis no retry logic | Post Call Analysis | Unanswered calls silently lost | Added Check Retry → Needs Retry? → Re-Queue Voice Call |
 | Log Connection Request missing between Add to Campaign and Mark Queue Skipped | Coordinator | Connection requests not logged to Supabase | Added Log Connection Request node |
