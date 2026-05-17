@@ -21,19 +21,21 @@ The two-filter gate handles this:
 ## Gate — Only Our Campaign Leads
 
 **Filter 1 — `Extract & Filter` (Code node):**
-- Normalises Gmail trigger header casing — Gmail outputs `From`, `Subject` (capitalised) not `from`, `subject`. Code reads both forms with fallback: `email.from || email.From`.
-- Drops emails where sender could not be parsed
+- Normalises Gmail trigger header casing — Gmail outputs `From`, `To`, `Subject` (capitalised). Code reads both forms with fallback: `email.from || email.From`.
+- Outputs `from_email`, `to_email`, `from_name` — does NOT decide `lead_email` yet (that is determined by the Supabase lookup)
+- Drops emails where FROM could not be parsed
 - Drops emails from `noreply` / `no-reply` senders
-- Drops emails where sender is `team@flowticsai.com` — catches CC copies when we use that address as the Instantly sender
 - Drops emails that are not replies (requires `Re:` subject prefix or `inReplyTo` / `in-reply-to` header)
 - Drops emails with empty body
 
 **Filter 2 — `Supabase: Check Outbound` → `Filter: Our Thread Only`:**
-- Queries Supabase: `conversations?lead_email=eq.{sender}&channel=eq.email&direction=eq.outbound&limit=1`
-- The FROM address (lead's email) must match a lead we have previously emailed. This is the definitive gate.
-- CC copies where FROM = a random Instantly sender address also get dropped here — that sender email is not a lead in Supabase.
-- Newsletters, cold inbound, random emails are all dropped here.
-- Only leads we have previously emailed (via Coordinator or any other path) pass through.
+- Queries `leads` table with OR filter: `leads?or=(lead_email.eq.{from_email},lead_email.eq.{to_email})&select=lead_id,lead_email,full_name&limit=1`
+- Checks both FROM and TO against Supabase leads — whichever matches is the lead
+- This handles two distinct scenarios:
+  - **Scenario 1 (Instantly outbound CC):** From=Instantly sender, To=lead, Cc=team@flowticsai.com → TO matches Supabase → lead is TO
+  - **Scenario 2 (Lead replies to our email):** From=lead, To=team@flowticsai.com → FROM matches Supabase → lead is FROM
+- `Filter: Our Thread Only` sets `lead_email` and `lead_name` from the Supabase match result
+- All downstream nodes (Fetch Context, Reply Agent, Write Inbound, Write Outbound, Send Gmail Reply) use this resolved `lead_email`
 
 ## Node Sequence
 
@@ -69,7 +71,7 @@ This means if a lead called us last week but is now replying to an email, the AI
 
 ## Key Design Notes
 
-- **Gate is email-outbound-only:** the Supabase check looks for `direction=outbound, channel=email`. LinkedIn-only leads (never emailed) are dropped. Once the Coordinator sends them an email, future replies are picked up.
+- **Gate is Supabase leads table:** any email address (FROM or TO) that exists in the `leads` table passes through. The lead must have been added to Supabase by the Instantly workflow or any other upstream process before Gmail Reply Agent will act on it.
 - **`neverError: true` on Supabase check:** if Supabase is down, the filter node receives an error response. Since `Filter: Our Thread Only` checks `Array.isArray(rows) && rows.length > 0`, a non-array error response also results in `return []` — so the agent fails safe (drops the email) rather than replying to everything.
 - **Instantly AI leads:** Set Reply-To = `team@flowticsai.com` in every Instantly campaign. Gmail trigger picks up those replies automatically.
 - **Gmail header casing bug (fixed 2026-05-18):** The n8n Gmail trigger outputs header names with capital letters (`From`, `Subject`) not lowercase. The original `Extract & Filter` code used `email.from` and `email.subject` (lowercase), which were always `undefined`. This caused every email — including real lead replies — to be silently dropped at the `!leadEmail` check. Fixed by reading `email.from || email.From` and `email.subject || email.Subject`. Without this fix the workflow never processed any lead reply.
