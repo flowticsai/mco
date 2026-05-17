@@ -138,7 +138,7 @@ Never implement intent promotion in n8n Code nodes — always goes through `upse
   - **YES** (existing conversation — lead is connected, has DM thread):
     - LinkedIn: Generate Message (Claude AI)
     - LinkedIn: Extract Message
-    - Reply to Existing Conversation — `POST Aimfox /accounts/:id/conversations/:urn/messages`
+    - Reply to Existing Conversation — `POST Aimfox /accounts/:id/conversations/:urn` (no `/messages` suffix)
     - After Send → Log to Supabase → Mark Queue Sent → Return OK
   - **NO** (not yet connected — email-sourced lead):
     - Add to LinkedIn Campaign — `POST Aimfox /campaigns/6e2feb86-b9c6-4c18-87fa-c5fe5e41682f/audience` body: `{ profile_url }`
@@ -280,7 +280,7 @@ Never implement intent promotion in n8n Code nodes — always goes through `upse
 |---|---|---|
 | `GET /accounts/:id/leads/:urn/custom-variables` | Connection Accepted Handler | Read LEAD_EMAIL + lead_name |
 | `POST /accounts/:id/conversations` | Connection Accepted Handler | Send thanks message (opens new thread) |
-| `POST /accounts/:id/conversations/:urn/messages` | Coordinator (LinkedIn DM path) | Reply to existing conversation thread |
+| `POST /accounts/:id/conversations/:urn` | Coordinator (LinkedIn DM path) | Reply to existing conversation thread (NO `/messages` suffix — verified live) |
 | `POST /campaigns/:campaign_id/audience` | Coordinator (no URN path) | Add lead to campaign by `profile_url` — no account prefix |
 | `PUT /leads/:id/labels/:label_id` | Aimfox Responded | Mark lead as having responded |
 | `GET /accounts/:id/conversations/:urn` | Reply Agent | Fetch conversation thread for context |

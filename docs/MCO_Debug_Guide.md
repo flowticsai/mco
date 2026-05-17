@@ -111,7 +111,7 @@ Compare the `conversations` timestamps with n8n execution timestamps. If a conve
 ## 4. Per-Workflow: Inputs Required, Where It Fails
 
 ### Write Conversation Event (`5qOo5YzrPnW8Uj9g`)
-**Required:** `event_id` (UUID), `channel`, `direction`, `content`, `timestamp`, at least one of: `lead_email`, `linkedin_profile_url`, `linkedin_urn`, `phone_e164`
+**Required:** `event_id` (UUID), `channel`, `direction`, `content`, `timestamp`, at least one of: `lead_id`, `lead_email`, `linkedin_profile_url`, `linkedin_urn`, `phone_e164`
 
 **Common failure points:**
 - `event_id` is not a valid UUID → Supabase rejects the insert silently (neverError)

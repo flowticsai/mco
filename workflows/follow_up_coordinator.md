@@ -59,7 +59,8 @@ Send a follow-up message to a lead on a specified channel. Fetches cross-channel
    7. **LinkedIn: Claude Model** — Anthropic
    8. **LinkedIn: Generate Message** — LLM chain
    9. **LinkedIn: Extract Message** — Code node
-   10. **Reply to Existing Conversation** — `POST Aimfox /accounts/:aimfox_account_id/conversations/:conversation_urn/messages`
+   10. **Reply to Existing Conversation** — `POST Aimfox /accounts/:aimfox_account_id/conversations/:conversation_urn`
+       - Body: `{ message: generated_message }` — note NO `/messages` suffix
    11. After Send → Log → Mark Queue Sent → Return OK
 
    **NO — no connection yet (email-sourced lead without LinkedIn connection):**

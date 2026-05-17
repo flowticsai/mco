@@ -68,6 +68,13 @@ All 10 workflows are Active. Supabase tables and RPCs confirmed accessible.
 | `Add to LinkedIn Campaign` URL not evaluated (no `=` prefix) | Coordinator | Aimfox received URL-encoded literal `%7B%7B$json.aimfox_account_id%7D%7D` | Changed to `={{ "https://..." + $json.aimfox_account_id + "..." }}` expression |
 | `Mark Queue Skipped` URL filter syntax wrong | Coordinator | Supabase received literal `eq={{ $json.queue_id }}` causing PGRST100 parse error | Changed to `={{ "...?queue_id=eq." + $('Merge Context').first().json.queue_id }}` |
 | `Add to LinkedIn Campaign` wrong URL and body | Coordinator | Every campaign add 404'd silently; connection requests never sent | Correct endpoint is `POST /campaigns/:id/audience` (no `/accounts/:id` prefix); body is `{ profile_url }` not `{ leads: [urn] }`. Verified live: Aimfox returns `{"status":"ok","profile":{...}}` |
+| `Mark Queue Sent` headers used `$json.SUPABASE_KEY` | Coordinator | No API key found in request — queue row never marked sent | Changed to `$('Merge Context').first().json.SUPABASE_KEY` |
+| `Reply to Existing Conversation` URL had `/messages` suffix | Coordinator | Aimfox returned "Cannot POST" — DM never sent | Correct endpoint is `POST /accounts/:id/conversations/:urn` (no `/messages`). Verified live: returns `{status:"ok", message_urn}` |
+| `Reply to Existing Conversation` body used `$('Merge Context').first().json.generated_message` | Coordinator | `generated_message` not in Merge Context → `{}` body → Aimfox 422 | Changed to `$('LinkedIn: Extract Message').first().json.generated_message` |
+| `After Send` didn't carry `generated_message` forward | Coordinator | `Log to Supabase` content was always null → conversation row never written | Added try-catch pickup of `generated_message` from LinkedIn/Email/Voice Extract nodes in After Send code |
+| `Log to Supabase` content used `$('Merge Context').first().json.generated_message` | Coordinator | Same as above — content always null | Changed to `$json.generated_message` (from After Send output) |
+| `Log to Supabase` didn't pass `linkedin_urn` or `linkedin_profile_url` | Coordinator | For LinkedIn-only leads (no email), Write Event had no usable identifier | Added `linkedin_urn` and `linkedin_profile_url` to payload |
+| Write Event `Setup & Validate` didn't accept `lead_id` as valid identifier | Write Event | LinkedIn-only leads passed `lead_id` only → "At least one identifier required" error → no conversation logged | Added `lead_id` check to the identifier validation block |
 
 ---
 
