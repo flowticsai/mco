@@ -353,6 +353,6 @@ WHERE queue_id = '<queue_id>';
 - **Aimfox `neverError` nodes:** silent failures are the #1 debugging challenge. Always check the output JSON, not the node colour.
 - **`conversation_urn` null:** if the thanks message send fails (Aimfox 500), `conversation_urn` stays null on the lead. Coordinator will add them to a campaign instead of DMing — this is degraded but functional.
 - **LinkedIn-only leads:** `lead_email` can be null throughout the system. All workflows now handle this; never throw on missing email.
-- **Aimfox campaign must be ACTIVE:** campaign `6e2feb86-b9c6-4c18-87fa-c5fe5e41682f` must be in ACTIVE state for the Coordinator's campaign path to work. DONE campaigns reject new audience adds.
+- **Aimfox campaign state:** campaign `6e2feb86-b9c6-4c18-87fa-c5fe5e41682f` accepts audience adds in ACTIVE, PAUSED, DONE, and CREATED states. Unsupported types are GROUP MESSAGE and EVENT MESSAGE only.
 - **Instantly AI:** no separate workflow. Set Reply-To = `team@flowticsai.com` in each campaign. Gmail Reply Agent handles all inbound from Instantly.
 - **Dispatcher fires every 15 min:** a pending queue row will be picked up within 15 minutes of `scheduled_for`. If it's been >30 min and the row is still pending, the Dispatcher or Coordinator has a problem.

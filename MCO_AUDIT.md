@@ -67,7 +67,7 @@ All 10 workflows are Active. Supabase tables and RPCs confirmed accessible.
 | Fetch Context URL undefined: Setup & Validate omitted `FETCH_CONTEXT_URL` and `WRITE_EVENT_URL` | Coordinator | "URL parameter must be a string, got undefined" on Fetch Context node | Added both constants to Setup & Validate output |
 | `Add to LinkedIn Campaign` URL not evaluated (no `=` prefix) | Coordinator | Aimfox received URL-encoded literal `%7B%7B$json.aimfox_account_id%7D%7D` | Changed to `={{ "https://..." + $json.aimfox_account_id + "..." }}` expression |
 | `Mark Queue Skipped` URL filter syntax wrong | Coordinator | Supabase received literal `eq={{ $json.queue_id }}` causing PGRST100 parse error | Changed to `={{ "...?queue_id=eq." + $('Merge Context').first().json.queue_id }}` |
-| `Add to LinkedIn Campaign` endpoint path `/leads` returns 404 from Aimfox | Coordinator | Connection request campaign add silently failed on every execution | Changed to `/audience` per debug guide; Aimfox endpoint still under investigation |
+| `Add to LinkedIn Campaign` wrong URL and body | Coordinator | Every campaign add 404'd silently; connection requests never sent | Correct endpoint is `POST /campaigns/:id/audience` (no `/accounts/:id` prefix); body is `{ profile_url }` not `{ leads: [urn] }`. Verified live: Aimfox returns `{"status":"ok","profile":{...}}` |
 
 ---
 

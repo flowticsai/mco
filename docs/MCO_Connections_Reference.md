@@ -141,7 +141,7 @@ Never implement intent promotion in n8n Code nodes — always goes through `upse
     - Reply to Existing Conversation — `POST Aimfox /accounts/:id/conversations/:urn/messages`
     - After Send → Log to Supabase → Mark Queue Sent → Return OK
   - **NO** (not yet connected — email-sourced lead):
-    - Add to LinkedIn Campaign — `POST Aimfox /accounts/:id/campaigns/6e2feb86-b9c6-4c18-87fa-c5fe5e41682f/leads`
+    - Add to LinkedIn Campaign — `POST Aimfox /campaigns/6e2feb86-b9c6-4c18-87fa-c5fe5e41682f/audience` body: `{ profile_url }`
     - Log Connection Request — `POST /mco-write-event` (channel=linkedin, content="Connection request sent via Aimfox campaign", intent=no_action)
     - Mark Queue Skipped — `PATCH follow_up_queue` status=skipped
     - Return OK (Campaign) — separate 200, does NOT go through After Send
@@ -281,7 +281,7 @@ Never implement intent promotion in n8n Code nodes — always goes through `upse
 | `GET /accounts/:id/leads/:urn/custom-variables` | Connection Accepted Handler | Read LEAD_EMAIL + lead_name |
 | `POST /accounts/:id/conversations` | Connection Accepted Handler | Send thanks message (opens new thread) |
 | `POST /accounts/:id/conversations/:urn/messages` | Coordinator (LinkedIn DM path) | Reply to existing conversation thread |
-| `POST /accounts/:id/campaigns/:campaign_id/audience` | Coordinator (no URN path) | Add lead to connection request campaign |
+| `POST /campaigns/:campaign_id/audience` | Coordinator (no URN path) | Add lead to campaign by `profile_url` — no account prefix |
 | `PUT /leads/:id/labels/:label_id` | Aimfox Responded | Mark lead as having responded |
 | `GET /accounts/:id/conversations/:urn` | Reply Agent | Fetch conversation thread for context |
 
