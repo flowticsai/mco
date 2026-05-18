@@ -72,7 +72,8 @@ This means if a lead called us last week but is now replying to an email, the AI
 ## Key Design Notes
 
 - **Gate is Supabase leads table:** any email address (FROM or TO) that exists in the `leads` table passes through. The lead must have been added to Supabase by the Instantly workflow or any other upstream process before Gmail Reply Agent will act on it.
-- **`neverError: true` on Supabase check:** if Supabase is down, the filter node receives an error response. Since `Filter: Our Thread Only` checks `Array.isArray(rows) && rows.length > 0`, a non-array error response also results in `return []` — so the agent fails safe (drops the email) rather than replying to everything.
+- **`neverError: true` on Supabase check:** if Supabase is down, the filter node receives an error response. `Filter: Our Thread Only` checks for a valid `lead_email` on the result — a non-object or missing `lead_email` returns `[]`, so the agent fails safe.
+- **n8n single-item array unwrapping:** n8n's HTTP node unwraps single-item Supabase arrays `[{...}]` into plain objects `{...}`. `Filter: Our Thread Only` handles both: `Array.isArray(rows) ? rows[0] : (rows?.lead_email ? rows : null)`.
 - **Instantly AI leads:** Set Reply-To = `team@flowticsai.com` in every Instantly campaign. Gmail trigger picks up those replies automatically.
 - **Gmail header casing bug (fixed 2026-05-18):** The n8n Gmail trigger outputs header names with capital letters (`From`, `Subject`) not lowercase. The original `Extract & Filter` code used `email.from` and `email.subject` (lowercase), which were always `undefined`. This caused every email — including real lead replies — to be silently dropped at the `!leadEmail` check. Fixed by reading `email.from || email.From` and `email.subject || email.Subject`. Without this fix the workflow never processed any lead reply.
 

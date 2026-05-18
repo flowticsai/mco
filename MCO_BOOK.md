@@ -506,7 +506,9 @@ In both cases we want to reply to the lead. The lead is whoever is in Supabase �
 10. **Send Gmail Reply** — sends to `lead_email` (the resolved Supabase match)
 11. **MCO: Write Outbound** — logs the sent reply
 
-**Fail-safe behaviour:** if Supabase is unavailable, `Filter: Our Thread Only` checks `Array.isArray(rows) && rows.length > 0` — a non-array error response fails this check and returns `[]`, dropping the email rather than replying blindly.
+**Fail-safe behaviour:** if Supabase is unavailable, `Filter: Our Thread Only` checks for a valid `lead_email` on the result and returns `[]` if absent — dropping the email rather than replying blindly.
+
+**n8n single-item array unwrapping (gotcha):** n8n's HTTP Request node unwraps single-item JSON arrays `[{...}]` into plain objects `{...}`. The original `Array.isArray(rows)` check always returned false for a single Supabase match, causing the filter to drop leads that were correctly found. Fixed by handling both: `Array.isArray(rows) ? rows[0] : (rows?.lead_email ? rows : null)`.
 
 **Instantly AI integration:** no separate workflow. In every Instantly campaign, set Reply-To = `team@flowticsai.com`. The Instantly workflow must also write the lead to Supabase (`upsert_lead`) at send time — this is the prerequisite for the Gmail Reply Agent to recognise the lead when the CC arrives.
 
